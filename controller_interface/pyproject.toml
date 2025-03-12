@@ -1,0 +1,28 @@
+[build-system]
+# Requires setuptools 61.0+ for full PEP 621 support
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "controller_interface"
+version = "1.0.0"
+description = "A short description of controller_interface"
+readme = "README.md"
+requires-python = ">=3.7"
+license = { text = "MIT" }
+
+# Author info
+authors = [
+  { name = "Rode Peters", email = "rpeters@salvusdetect.com" }
+]
+
+# Dependencies (from pipreqs + any others you need)
+dependencies = [
+  "PyQt5>=5.15.11",
+  "matplotlib>=3.10.0",
+  "pandas>=2.2.3"
+]
+
+# Console script to run your app with "run" on the command line
+[project.scripts]
+run = "controller_interface.main:main"
