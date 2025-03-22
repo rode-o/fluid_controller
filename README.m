@@ -1,4 +1,5 @@
 # Fluid Controller
+# WIP
 
 This repository contains software and firmware for a custom fluid control system, featuring PID-based flow rate control, intuitive graphical interfaces, real-time plotting, and reliable hardware communication.
 
