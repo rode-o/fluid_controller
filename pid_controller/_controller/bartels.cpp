@@ -16,7 +16,8 @@
  static bool firstRun       = true;
  
  // Forward declarations
- static void writeWaveformData(float voltage, uint8_t freqByte);
+ static void writeFullWaveformData(float voltage, uint8_t freqByte);
+ static void writeAmplitudeAndFrequency(float voltage, uint8_t freqByte);
  static void writeControlData();
  
  // ---------------------------------------------------------------------------
@@ -50,7 +51,8 @@
  /*
   * Function: runSequence
   * Brief: Updates driver settings based on the specified voltage.
-  *        Includes a two-pass initialization on the first run.
+  *        Includes a two-pass full initialization on the first run,
+  *        then only updates amplitude/frequency afterwards.
   */
  void runSequence(float voltage) {
    if (!bartelsInited) return;
@@ -64,12 +66,15 @@
    // Convert it to the driver register byte:
    uint8_t freqByte       = computeFreqByte(pumpBaseFreqHz);
  
-   // Double-pass initialization
+   // Double-pass initialization (full configuration) if this is the first run
    if (firstRun) {
      for (int i = 0; i < 2; i++) {
-       writeWaveformData(voltage, freqByte);
+       // Write entire waveform configuration
+       writeFullWaveformData(voltage, freqByte);
+       // Write control data
        writeControlData();
  
+       // Set page = 0 (commonly required after config writes)
        Wire.beginTransmission(BARTELS_DRIVER_ADDR);
        Wire.write(BARTELS_PAGE_REGISTER);
        Wire.write(0);
@@ -81,10 +86,13 @@
      return;
    }
  
-   // Normal operation after first run
-   writeWaveformData(voltage, freqByte);
+   // Normal operation after first run:
+   //  -> Only update amplitude/frequency registers (no big block rewrite)
+   writeAmplitudeAndFrequency(voltage, freqByte);
+   // Optionally still update control data if needed:
    writeControlData();
  
+   // Return page to 0
    Wire.beginTransmission(BARTELS_DRIVER_ADDR);
    Wire.write(BARTELS_PAGE_REGISTER);
    Wire.write(0);
@@ -102,7 +110,9 @@
      // amplitude=0, same frequency
      uint8_t freqByte = computeFreqByte(BARTELS_FREQ);
  
-     writeWaveformData(0.0f, freqByte);
+     // For safety, we can still do the full wave write or just minimal amplitude write.
+     // Full write is shown below (mirroring the existing logic):
+     writeFullWaveformData(0.0f, freqByte);
      writeControlData();
  
      Wire.beginTransmission(BARTELS_DRIVER_ADDR);
@@ -115,10 +125,12 @@
  }
  
  /*
-  * Function: writeWaveformData
-  * Brief: Writes amplitude and frequency data to page=1 of the Bartels driver.
+  * Function: writeFullWaveformData
+  * Brief: Writes the *entire* 10-byte waveform configuration
+  *        (including amplitude and freq) to page=1.
+  *        Used during driver initialization or special reconfigurations.
   */
- static void writeWaveformData(float voltage, uint8_t freqByte) {
+ static void writeFullWaveformData(float voltage, uint8_t freqByte) {
    float ratio = voltage / BARTELS_ABSOLUTE_MAX;
    if (ratio < 0.0f) ratio = 0.0f;
    if (ratio > 1.0f) ratio = 1.0f;
@@ -140,7 +152,7 @@
    Wire.write(1);
    Wire.endTransmission();
  
-   // Write waveform bytes
+   // Write all 10 waveform bytes
    for (uint8_t i = 0; i < 10; i++) {
      Wire.beginTransmission(BARTELS_DRIVER_ADDR);
      Wire.write(i);
@@ -152,15 +164,50 @@
  }
  
  /*
+  * Function: writeAmplitudeAndFrequency
+  * Brief: Writes *only* the amplitude and frequency registers to page=1.
+  *        This is the minimal update used after initialization.
+  */
+ static void writeAmplitudeAndFrequency(float voltage, uint8_t freqByte) {
+   float ratio = voltage / BARTELS_ABSOLUTE_MAX;
+   if (ratio < 0.0f) ratio = 0.0f;
+   if (ratio > 1.0f) ratio = 1.0f;
+ 
+   uint8_t amplitude_value = (uint8_t)(ratio * 255.0f);
+ 
+   // Switch to page=1
+   Wire.beginTransmission(BARTELS_DRIVER_ADDR);
+   Wire.write(BARTELS_PAGE_REGISTER);
+   Wire.write(1);
+   Wire.endTransmission();
+ 
+   // Write amplitude register (index=6 in the 10-byte array)
+   Wire.beginTransmission(BARTELS_DRIVER_ADDR);
+   Wire.write(6);
+   Wire.write(amplitude_value);
+   Wire.endTransmission();
+ 
+   // Write frequency register (index=7 in the 10-byte array)
+   Wire.beginTransmission(BARTELS_DRIVER_ADDR);
+   Wire.write(7);
+   Wire.write(freqByte);
+   Wire.endTransmission();
+ 
+   delay(default_delay);
+ }
+ 
+ /*
   * Function: writeControlData
   * Brief: Writes control data from BARTELS_CONTROL_DATA[] to page=0.
   */
  static void writeControlData() {
+   // Switch to page=0
    Wire.beginTransmission(BARTELS_DRIVER_ADDR);
    Wire.write(BARTELS_PAGE_REGISTER);
    Wire.write(0);
    Wire.endTransmission();
  
+   // Write each control register (4 bytes)
    for (uint8_t i = 0; i < 4; i++) {
      Wire.beginTransmission(BARTELS_DRIVER_ADDR);
      Wire.write(i);
