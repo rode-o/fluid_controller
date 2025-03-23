@@ -9,7 +9,7 @@
 // Initializes the driver state
 bool initBartels();
 
-// Writes waveform and control data to the micropump
+// Writes amplitude and control data to the micropump
 void runSequence(float voltage);
 
 // Sets pump amplitude to zero (stop)
