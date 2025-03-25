@@ -26,10 +26,12 @@ class DataStreamerView(QWidget):
 
     Layout approach:
       - A QSplitter (vertical) divides:
-         (A) Top container: ControlsPanel + LiveDataPanel side-by-side (3:1)
-         (B) PlotManager container
+         (A) Top container: ControlsPanel + LiveDataPanel (3:1 side-by-side).
+         (B) PlotManager area.
       - A bottom row (outside splitter) has a "Home" button.
-      - Debug statements are included in _init_ui() and resizeEvent().
+      - This allows the user to drag-resize the vertical splitter as needed.
+
+    The 'live_data_panel' receives data from on_new_data(...).
     """
 
     goHomeSignal = pyqtSignal()  # Emitted when user clicks "Home"
@@ -39,24 +41,26 @@ class DataStreamerView(QWidget):
         self.settings = settings  # QSettings from MainWindow
 
         # runtime references
-        self.run_manager = None
+        self.run_manager   = None
         self.serial_thread = None
-        self.start_time = None
+        self.start_time    = None
 
         # UI elements
-        self.controls_panel = None
+        self.controls_panel  = None
         self.live_data_panel = None
-        self.plot_manager = None
-        self.btn_home = None
+        self.plot_manager    = None
+        self.btn_home        = None
 
         self._init_ui()
 
     def _init_ui(self):
         """
-        Build the layout with a QSplitter for top/bottom sections,
-        plus a bottom row for the Home button.
+        Build the layout with a QSplitter for top/bottom sections:
+          top => (ControlsPanel + LiveDataPanel)
+          bottom => PlotManager
+        And then a bottom row for the Home button.
         """
-        print("[DEBUG] DataStreamerView._init_ui() called.")
+        # Main vertical layout
         self.main_layout = QVBoxLayout(self)
         self.main_layout.setContentsMargins(10, 10, 10, 10)
 
@@ -79,17 +83,19 @@ class DataStreamerView(QWidget):
         splitter.addWidget(top_widget)
 
         # ------------------- BOTTOM WIDGET: PlotManager -------------------
+        # If PlotManager is a "widget-based" approach, we can embed it in another widget:
         plot_widget = QWidget()
         plot_widget.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
 
         plot_layout = QVBoxLayout(plot_widget)
         plot_layout.setContentsMargins(0, 0, 0, 0)
 
+        # PlotManager expects a layout parent; pass in plot_layout
         self.plot_manager = PlotManager(plot_layout)
         splitter.addWidget(plot_widget)
 
-        # Assign splitter stretch factors
-        # For instance: top ~ 3, bottom ~ 6
+        # Assign stretch factors so top is smaller by default
+        # e.g. top=3, bottom=6 => top ~ 1/3, bottom ~ 2/3 initially
         splitter.setStretchFactor(0, 3)
         splitter.setStretchFactor(1, 6)
 
@@ -110,13 +116,6 @@ class DataStreamerView(QWidget):
         self.controls_panel.startCaptureSignal.connect(self.start_capture)
         self.controls_panel.stopCaptureSignal.connect(self.stop_capture)
         self.controls_panel.changeDirSignal.connect(self.change_save_dir)
-
-    def resizeEvent(self, event):
-        """
-        Debug logging in the resize event to confirm we are resizing.
-        """
-        print(f"[DEBUG] DataStreamerView resized: {self.width()} x {self.height()}")
-        super().resizeEvent(event)
 
     # --------------------------------------------------------------------------
     # "Home" button
@@ -147,11 +146,9 @@ class DataStreamerView(QWidget):
 
         # Prompt for test name
         last_test_name = self.settings.value("last_test_name", "untitled")
-        text_tuple = QInputDialog.getText(
+        test_name, ok = QInputDialog.getText(
             self, "Test Name", "Enter a test name:", text=last_test_name
         )
-        test_name, ok = text_tuple[0], text_tuple[1]
-
         if not ok or not test_name.strip():
             test_name = "untitled"
         else:
@@ -226,8 +223,8 @@ class DataStreamerView(QWidget):
 
             # Run post-analysis
             stable_w = self.controls_panel.stable_window_spin.value()
-            thresh = self.controls_panel.stable_threshold_spin.value()
-            fluid_d = self.controls_panel.fluid_density_spin.value()
+            thresh   = self.controls_panel.stable_threshold_spin.value()
+            fluid_d  = self.controls_panel.fluid_density_spin.value()
 
             self.run_manager.run_post_analysis(stable_w, thresh, fluid_d)
 
@@ -249,7 +246,11 @@ class DataStreamerView(QWidget):
         """
         Called whenever the serial thread produces new data.
         We log to CSV, update the LiveDataPanel, and feed data to PlotManager.
+
+        'data_dict' might have:
+          flow, setpt, temp, volt, bubble, errorPct, pidOut, P, I, D, ...
         """
+        # Write row to CSV (if run_manager is open)
         row = [
             data_dict.get("timeMs",    0),
             data_dict.get("flow",      0.0),
@@ -267,17 +268,17 @@ class DataStreamerView(QWidget):
         if self.run_manager:
             self.run_manager.write_csv_row(row)
 
-        # Update LiveDataPanel fields
-        flow_val = float(data_dict.get("flow", 0.0))
-        setpt_val = float(data_dict.get("setpt", 0.0))
-        temp_val = float(data_dict.get("temp", 0.0))
-        volt_val = float(data_dict.get("volt", 0.0))
-        bubble_bool = bool(data_dict.get("bubble", False))
+        # Extract fields for LiveDataPanel
+        flow_val    = float(data_dict.get("flow",   0.0))
+        setpt_val   = float(data_dict.get("setpt",  0.0))
+        temp_val    = float(data_dict.get("temp",   0.0))
+        volt_val    = float(data_dict.get("volt",   0.0))
+        bubble_bool = bool(data_dict.get("bubble",  False))
 
-        p_val   = float(data_dict.get("P", 0.0))
-        i_val   = float(data_dict.get("I", 0.0))
-        d_val   = float(data_dict.get("D", 0.0))
-        pid_out = float(data_dict.get("pidOut", 0.0))
+        p_val   = float(data_dict.get("P",       0.0))
+        i_val   = float(data_dict.get("I",       0.0))
+        d_val   = float(data_dict.get("D",       0.0))
+        pid_out = float(data_dict.get("pidOut",  0.0))
 
         error_pct     = data_dict.get("errorPct", None)
         on_state      = data_dict.get("on", None)
@@ -289,7 +290,7 @@ class DataStreamerView(QWidget):
         current_alpha = data_dict.get("alpha", None)
         total_flow_ml = data_dict.get("totalVolume", None)
 
-        # Feed to the live data panel
+        # Update LiveDataPanel with the above fields
         self.live_data_panel.update_data(
             setpt_val,
             flow_val,
@@ -311,11 +312,12 @@ class DataStreamerView(QWidget):
             total_flow_ml=total_flow_ml
         )
 
-        # Convert timeMs to "elapsed_s" for PlotManager
+        # Convert device time to local "elapsed_s" for PlotManager
         if self.start_time:
             current_time = time.time()
             elapsed_s = current_time - self.start_time
         else:
             elapsed_s = 0.0
 
+        # Pass data to PlotManager
         self.plot_manager.update_data(data_dict, elapsed_s)
