@@ -1,0 +1,11 @@
+/* app/gui/themes/common.qss
+   Contains universal structure for #DarkButton, #LightButton
+   e.g. shape, padding, font size, etc.
+   No color codes here, so we can override them in each theme module.
+*/
+
+QPushButton#DarkButton,
+QPushButton#LightButton {
+    border-radius: 12px;
+    padding: 10px 20px;
+}
