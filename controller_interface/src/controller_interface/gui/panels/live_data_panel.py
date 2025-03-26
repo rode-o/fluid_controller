@@ -1,121 +1,81 @@
-from PyQt5.QtWidgets import (
-    QGroupBox, QHBoxLayout, QVBoxLayout, QLabel
-)
+from PyQt5.QtWidgets import QGroupBox, QVBoxLayout, QLabel
+from PyQt5.QtGui import QFont, QPalette, QColor
 from PyQt5.QtCore import Qt
-# No direct QFont import needed now because we'll rely on style sheets
 
 class LiveDataPanel(QGroupBox):
     """
-    Displays real-time data in two columns, including total volume in mL.
-    
-    COLUMN 1:
-      1) Mode
-      2) On?
-      3) Err%
-      4) Setpt
-      5) Flow (mL/min)
-      6) Temp
-      7) Volt
-      8) Bubble
-      9) Total Vol (mL)
-    
-    COLUMN 2:
-      1) FiltErr
-      2) Alpha
-      3) P
-      4) pGain
-      5) I
-      6) iGain
-      7) D
-      8) dGain
-      9) PID Out
-
-    Best‐practice layout:
-    - No forced panel sizes or min/max constraints.
-    - Uses a style sheet to set the font size for all child labels.
+    A QGroupBox that displays real-time data in a single column.
+    - The group box title is 16pt and bold, colored rgb(29, 154, 221).
+    - All child labels are 16pt, not bold.
     """
-
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setTitle("Live Data")
 
-        # 1) Apply a style sheet that sets font size to, e.g., 12pt for
-        #    this QGroupBox and all its child widgets. 
-        #    Adjust 'font-size' to your desired size.
-        self.setStyleSheet("""
-            QGroupBox, QGroupBox * {
-                font-size: 12pt;
-            }
-        """)
+        #
+        # 1) Set the group box title color and font
+        #
+        title_color = QColor(29, 154, 221)  # Hard-coded
+        title_font = QFont()
+        title_font.setPointSize(12)
+        title_font.setBold(True)
+        self.setFont(title_font)
 
-        # 2) Main horizontal layout: two columns
-        self.main_layout = QHBoxLayout(self)
+        palette = self.palette()
+        palette.setColor(self.foregroundRole(), title_color)
+        self.setPalette(palette)
+
+        #
+        # 2) Create a child font: 16pt, not bold
+        #
+        self.child_font = QFont()
+        self.child_font.setPointSize(12)
+        self.child_font.setBold(False)
+
+        #
+        # Layout
+        #
+        self.main_layout = QVBoxLayout(self)
         self.main_layout.setContentsMargins(5, 5, 5, 5)
 
-        self.col1 = QVBoxLayout()
-        self.col2 = QVBoxLayout()
-
-        # We'll store references to the labels if needed later
-        self.labels_col1 = []
-        self.labels_col2 = []
-
-        # ---------------- COLUMN 1 ----------------
-        self.lbl_mode     = QLabel("Mode: ---")
-        self.lbl_onState  = QLabel("On?: ---")
-        self.lbl_errorPct = QLabel("Err%: ---")
-        self.lbl_setpt    = QLabel("Setpt: ---")
-        self.lbl_flow     = QLabel("Flow: ---")  # Will display "mL/min"
-        self.lbl_temp     = QLabel("Temp: ---")
-        self.lbl_volt     = QLabel("Volt: ---")
-        self.lbl_bubble   = QLabel("Bubble: ---")
+        #
+        # Create all the labels
+        #
+        self.lbl_mode        = QLabel("Mode: ---")
+        self.lbl_onState     = QLabel("On?: ---")
+        self.lbl_errorPct    = QLabel("Err%: ---")
+        self.lbl_setpt       = QLabel("Setpt: ---")
+        self.lbl_flow        = QLabel("Flow: ---")  # "mL/min"
+        self.lbl_temp        = QLabel("Temp: ---")
+        self.lbl_volt        = QLabel("Volt: ---")
+        self.lbl_bubble      = QLabel("Bubble: ---")
         self.lbl_totalVolume = QLabel("Total Vol: ---")
 
-        self.labels_col1.extend([
-            self.lbl_mode,
-            self.lbl_onState,
-            self.lbl_errorPct,
-            self.lbl_setpt,
-            self.lbl_flow,
-            self.lbl_temp,
-            self.lbl_volt,
-            self.lbl_bubble,
-            self.lbl_totalVolume
-        ])
+        self.lbl_filtErr     = QLabel("FiltErr: ---")
+        self.lbl_alpha       = QLabel("Alpha: ---")
+        self.lbl_p           = QLabel("P: ---")
+        self.lbl_pGain       = QLabel("pGain: ---")
+        self.lbl_i           = QLabel("I: ---")
+        self.lbl_iGain       = QLabel("iGain: ---")
+        self.lbl_d           = QLabel("D: ---")
+        self.lbl_dGain       = QLabel("dGain: ---")
+        self.lbl_pidOut      = QLabel("PID Out: ---")
 
-        for lbl in self.labels_col1:
-            self.col1.addWidget(lbl)
-        self.col1.addStretch(1)
+        self.labels = [
+            self.lbl_mode, self.lbl_onState, self.lbl_errorPct, self.lbl_setpt,
+            self.lbl_flow, self.lbl_temp, self.lbl_volt, self.lbl_bubble,
+            self.lbl_totalVolume, self.lbl_filtErr, self.lbl_alpha,
+            self.lbl_p, self.lbl_pGain, self.lbl_i, self.lbl_iGain,
+            self.lbl_d, self.lbl_dGain, self.lbl_pidOut
+        ]
 
-        # ---------------- COLUMN 2 ----------------
-        self.lbl_filtErr  = QLabel("FiltErr: ---")
-        self.lbl_alpha    = QLabel("Alpha: ---")
-        self.lbl_p        = QLabel("P: ---")
-        self.lbl_pGain    = QLabel("pGain: ---")
-        self.lbl_i        = QLabel("I: ---")
-        self.lbl_iGain    = QLabel("iGain: ---")
-        self.lbl_d        = QLabel("D: ---")
-        self.lbl_dGain    = QLabel("dGain: ---")
-        self.lbl_pidOut   = QLabel("PID Out: ---")
+        # Apply the child font and add each label to the layout
+        for lbl in self.labels:
+            lbl.setFont(self.child_font)
+            self.main_layout.addWidget(lbl)
 
-        self.labels_col2.extend([
-            self.lbl_filtErr,
-            self.lbl_alpha,
-            self.lbl_p,
-            self.lbl_pGain,
-            self.lbl_i,
-            self.lbl_iGain,
-            self.lbl_d,
-            self.lbl_dGain,
-            self.lbl_pidOut
-        ])
+        self.main_layout.addStretch(1)
 
-        for lbl in self.labels_col2:
-            self.col2.addWidget(lbl)
-        self.col2.addStretch(1)
-
-        # 3) Add both columns to the main layout
-        self.main_layout.addLayout(self.col1)
-        self.main_layout.addLayout(self.col2)
 
     def update_data(
             self,
@@ -140,12 +100,9 @@ class LiveDataPanel(QGroupBox):
         ):
         """
         Update the UI with new data.
-
-        Typically:
         - flow_val: mL/min
         - total_flow_ml: total volume in mL
         """
-        # ---------- COLUMN 1 ----------
         if mode_val is not None:
             self.lbl_mode.setText(f"Mode: {mode_val}")
         else:
@@ -172,7 +129,6 @@ class LiveDataPanel(QGroupBox):
         else:
             self.lbl_totalVolume.setText("Total Vol: ---")
 
-        # ---------- COLUMN 2 ----------
         if filtered_err is not None:
             self.lbl_filtErr.setText(f"FiltErr: {filtered_err:.3f}")
         else:

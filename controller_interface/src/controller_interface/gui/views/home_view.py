@@ -5,9 +5,24 @@ from PyQt5.QtWidgets import (
     QSizePolicy, QSpacerItem
 )
 from PyQt5.QtCore import Qt, pyqtSignal, QSize
-from PyQt5.QtGui import QIcon, QPixmap
+from PyQt5.QtGui import QIcon
 
 from controller_interface.gui.widgets.themed_button import ThemedButton
+
+
+def resource_path(relative_path: str) -> str:
+    """
+    Get the absolute path to a resource. Works in dev and when frozen by PyInstaller.
+    """
+    # If we're running in a PyInstaller bundle, sys._MEIPASS is the temp folder
+    # where bundled files are extracted. Otherwise, just use __file__.
+    if hasattr(sys, '_MEIPASS'):
+        base_path = sys._MEIPASS  # type: ignore
+    else:
+        base_path = os.path.dirname(__file__)
+
+    return os.path.join(base_path, relative_path)
+
 
 class HomeView(QWidget):
     """
@@ -27,7 +42,6 @@ class HomeView(QWidget):
 
         # Body layout: top spacer, button row, bottom spacer
         body_layout = QVBoxLayout()
-
         top_spacer = QSpacerItem(1, 1, QSizePolicy.Minimum, QSizePolicy.Expanding)
         body_layout.addSpacerItem(top_spacer)
 
@@ -38,25 +52,22 @@ class HomeView(QWidget):
         self.btn_pid_tuning = ThemedButton("", is_dark=False)
         self.btn_pid_tuning.clicked.connect(self._on_pid_tuning_clicked)
 
-        # Attempt to load a local .png as icon
-        this_dir = os.path.dirname(__file__)
-        logo_rel_path = os.path.join(
-            this_dir, "..", "..",
-            "resources",
-            "18915def-9726-452b-acb8-d54b328a7818.png"
-        )
-        logo_path = os.path.abspath(logo_rel_path)
+        # Use resource_path to find "salvus_full_logo_color.png"
+        # Note: if your PyInstaller build uses something like
+        #   --add-data="src\controller_interface\resources\salvus_full_logo_color.png;resources"
+        # then inside the bundled exe, the file is at "resources/salvus_full_logo_color.png"
+        logo_path = resource_path("resources/salvus_full_logo_color.png")
+
         if os.path.exists(logo_path):
+            print("[DEBUG] Found logo at:", logo_path)
             self.btn_pid_tuning.setToolTip("Open Tuning View")
-            icon = QIcon(logo_path)
-            self.btn_pid_tuning.setIcon(icon)
+            self.btn_pid_tuning.setIcon(QIcon(logo_path))
         else:
             self.btn_pid_tuning.setText("Logo Not Found")
-            print(f"[DEBUG] Logo path not found at: {logo_path}")
+            print(f"[DEBUG] Logo path not found: {logo_path}")
 
         button_row.addWidget(self.btn_pid_tuning)
         button_row.addStretch(1)
-
         body_layout.addLayout(button_row, 0)
 
         bottom_spacer = QSpacerItem(1, 1, QSizePolicy.Minimum, QSizePolicy.Expanding)
@@ -68,7 +79,7 @@ class HomeView(QWidget):
         """
         Enlarges the button and icon significantly.
         - 20% of the window's height for the button
-        - icon ~80% of that
+        - Icon ~80% of that
         """
         super().resizeEvent(event)
         print(f"[DEBUG] HomeView resizeEvent -> size={self.width()}x{self.height()}")
@@ -78,7 +89,7 @@ class HomeView(QWidget):
         # Make the button ~20% of the window height, min 80
         button_height = max(80, int(total_height * 0.2))
 
-        # The icon at ~80% of button height
+        # The icon at ~100% of button height (or your preference)
         icon_size = max(40, int(button_height * 1.0))
 
         # Font size or other styling
@@ -87,7 +98,6 @@ class HomeView(QWidget):
         pad_horz = int(button_height * 0.3)
         corner_radius = button_height // 2
 
-        # Additional snippet appended to the existing style
         style_snippet = f"""
             QPushButton {{
                 font-size: {font_size}px;
@@ -102,7 +112,7 @@ class HomeView(QWidget):
             self.btn_pid_tuning.styleSheet() + style_snippet
         )
 
-        # Also update icon size
+        # Update icon size
         self.btn_pid_tuning.setIconSize(QSize(icon_size, icon_size))
 
     def _on_pid_tuning_clicked(self):

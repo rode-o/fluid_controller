@@ -1,12 +1,15 @@
+import os
+import sys
 import time
 import getpass
 from datetime import datetime
 
 from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QMessageBox,
-    QSplitter, QSizePolicy
+    QLabel, QSizePolicy
 )
 from PyQt5.QtCore import Qt, pyqtSignal
+from PyQt5.QtGui import QPixmap
 
 from controller_interface.core.serial_worker import SerialWorker
 from controller_interface.core.flow_volume_tracker import FlowVolumeTracker
@@ -17,16 +20,28 @@ from controller_interface.gui.plots.tuning_plot_manager import TuningPlotManager
 from controller_interface.gui.widgets.themed_button import ThemedButton
 
 
+def resource_path(relative_path: str) -> str:
+    """
+    Returns the absolute path to a resource. Works for dev environments
+    and for PyInstaller bundles, which use a temp folder with _MEIPASS.
+    If you used `--add-data="SRC;resources"` in PyInstaller,
+    then your file is in "_MEIPASS/resources".
+    """
+    if hasattr(sys, '_MEIPASS'):
+        base_path = sys._MEIPASS  # type: ignore
+    else:
+        base_path = os.path.dirname(__file__)
+    return os.path.join(base_path, relative_path)
+
+
 class PidTuningView(QWidget):
     """
     A QWidget for advanced PID monitoring and data logging.
-    - Always runs post-analysis at the end of capture (no skipping).
+    - Always runs post-analysis at the end of capture.
     - Logs extended columns (pGain, iGain, dGain, etc.) to CSV.
     - Updates LiveDataPanel for real-time flow, setpt, PID terms, etc.
     - Includes a userStable toggle from TuningControlPanel.
     - Passes user-selected fluidDensity and final flow volume to post-analysis.
-
-    Style sheet is removed so ThemedButton's colors are not overridden.
     """
 
     goHomeSignal = pyqtSignal()  # for navigating back home
@@ -57,32 +72,76 @@ class PidTuningView(QWidget):
         self._load_settings()
 
     def _init_ui(self):
+        # Top-level layout: a vertical layout
         main_layout = QVBoxLayout(self)
 
-        # Create a vertical splitter (top vs bottom)
-        splitter = QSplitter(Qt.Vertical)
-        splitter.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        # ------------------------------------------------------------------
+        # Main content area: a horizontal layout
+        #   Left side: vertical layout with:
+        #       1) TuningControlPanel
+        #       2) LiveDataPanel
+        #       3) A "logo container" that fills leftover vertical space.
+        #   Right side: TuningPlotManager occupying the rest of the width.
+        # ------------------------------------------------------------------
+        hbox_main = QHBoxLayout()
 
-        # Top: Tuning panel + Live Data
-        top_container = QWidget()
-        top_hbox = QHBoxLayout(top_container)
-        top_hbox.addWidget(self.tuning_panel, stretch=7)  # ~70%
-        top_hbox.addWidget(self.live_data_panel, stretch=3)  # ~30%
-        splitter.addWidget(top_container)
+        # -- LEFT COLUMN --
+        left_vbox = QVBoxLayout()
 
-        # Bottom: Plot
+        # 1) TuningControlPanel
+        left_vbox.addWidget(self.tuning_panel, stretch=0)
+
+        # 2) LiveDataPanel
+        left_vbox.addWidget(self.live_data_panel, stretch=0)
+
+        #
+        # 3) "Logo container" that expands to fill leftover space
+        #
+        logo_container = QVBoxLayout()
+        # Add 30px left/right margin, 125px top/bottom (adjust as you like)
+        logo_container.setContentsMargins(30, 125, 30, 125)
+
+        self.lbl_logo = QLabel()
+        # Scale image to fit
+        self.lbl_logo.setScaledContents(True)
+        # "Ignored" => can shrink/grow with the container
+        self.lbl_logo.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Ignored)
+
+        # Build the path to the logo. 
+        # NOTE: If you used --add-data="src\controller_interface\resources\salvus_full_logo_color.png;resources"
+        # then the file is in "resources/salvus_full_logo_color.png" at runtime
+        # inside the PyInstaller bundle folder.
+        logo_path = resource_path("resources/salvus_full_logo_color.png")
+        pixmap = QPixmap(logo_path)
+        if not pixmap.isNull():
+            self.lbl_logo.setPixmap(pixmap)
+        else:
+            self.lbl_logo.setText("Logo not found")
+            print(f"[DEBUG] Could not load logo at: {logo_path}")
+
+        logo_container.addWidget(self.lbl_logo)
+
+        # Add the container w/ stretch=1, so it fills leftover space
+        left_vbox.addLayout(logo_container, stretch=1)
+
+        # Put the left_vbox into a QWidget and add it
+        left_container = QWidget()
+        left_container.setLayout(left_vbox)
+        # The entire left column can have a smaller stretch factor if you want
+        hbox_main.addWidget(left_container, stretch=1)
+
+        # -- RIGHT COLUMN: real-time plot --
         plot_container = QWidget()
         plot_layout = QVBoxLayout(plot_container)
         self.tuning_plot_manager = TuningPlotManager(plot_layout)
-        splitter.addWidget(plot_container)
+        hbox_main.addWidget(plot_container, stretch=9)
 
-        # 50-50 vertical split
-        splitter.setStretchFactor(0, 1)
-        splitter.setStretchFactor(1, 1)
+        # Add the entire hbox_main (left+right) to main_layout
+        main_layout.addLayout(hbox_main)
 
-        main_layout.addWidget(splitter)
-
-        # Bottom row: Home button
+        # ------------------------------------------------------------------
+        # Bottom row: "Home" button
+        # ------------------------------------------------------------------
         bottom_row = QHBoxLayout()
         bottom_row.addStretch(1)
 
@@ -91,6 +150,7 @@ class PidTuningView(QWidget):
         bottom_row.addWidget(self.btn_home)
 
         main_layout.addLayout(bottom_row)
+
         self.setLayout(main_layout)
 
         # Connect signals
@@ -98,11 +158,12 @@ class PidTuningView(QWidget):
         self.tuning_panel.stopSignal.connect(self._on_stop_clicked)
         self.tuning_panel.stabilityChanged.connect(self._on_stability_changed)
 
+    # ----------------------------------------------------------------
+    # Loading Settings
+    # ----------------------------------------------------------------
     def _load_settings(self):
-        """Load user settings (like last port, baud, time_window)."""
         if not self.settings:
             return
-
         last_port = self.settings.value("tuning_last_port", "")
         if last_port:
             idx = self.tuning_panel.port_combo.findText(last_port)
@@ -116,20 +177,17 @@ class PidTuningView(QWidget):
 
         last_tw = self.settings.value("tuning_time_window", 10.0, type=float)
         self.tuning_panel.time_window_spin.setValue(last_tw)
-
-        # TuningControlPanel-specific settings
         self.tuning_panel.load_settings()
 
+    # ----------------------------------------------------------------
+    # Saving Settings
+    # ----------------------------------------------------------------
     def _save_settings(self):
-        """Save user settings (like chosen port, baud, etc.)."""
         if not self.settings:
             return
-
         self.settings.setValue("tuning_last_port", self.tuning_panel.get_port())
         self.settings.setValue("tuning_last_baud", self.tuning_panel.get_baud())
         self.settings.setValue("tuning_time_window", self.tuning_panel.get_time_window())
-
-        # TuningControlPanel-specific settings
         self.tuning_panel.save_settings()
 
     # ---------------------------------------------------
@@ -289,13 +347,12 @@ class PidTuningView(QWidget):
 
             # Grab user-selected density
             fluid_density = self.tuning_panel.get_fluid_density()
-            # NEW: get the final total from FlowVolumeTracker
             final_flow = self.flow_tracker.get_total_volume_ml()
 
             # Pass both fluid_density and total_flow into run_post_analysis
             self.run_manager.run_post_analysis(
                 fluid_density=fluid_density,
-                total_flow=final_flow  # new argument
+                total_flow=final_flow
             )
 
             QMessageBox.information(

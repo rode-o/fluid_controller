@@ -26,7 +26,7 @@ class ThemedButton(QPushButton):
 
         # Common styling for both variants:
         base_style = """
-            font-size: 10pt;
+            font-size: 12pt;
             border-radius: 8px;
             padding: 10px 20px;
             border: none;
