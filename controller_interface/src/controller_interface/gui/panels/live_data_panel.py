@@ -2,6 +2,7 @@ from PyQt5.QtWidgets import (
     QGroupBox, QHBoxLayout, QVBoxLayout, QLabel
 )
 from PyQt5.QtCore import Qt
+# No direct QFont import needed now because we'll rely on style sheets
 
 class LiveDataPanel(QGroupBox):
     """
@@ -28,21 +29,33 @@ class LiveDataPanel(QGroupBox):
       7) D
       8) dGain
       9) PID Out
+
+    Best‐practice layout:
+    - No forced panel sizes or min/max constraints.
+    - Uses a style sheet to set the font size for all child labels.
     """
 
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setTitle("Live Data")
 
-        # Main horizontal layout: col1 + col2
+        # 1) Apply a style sheet that sets font size to, e.g., 12pt for
+        #    this QGroupBox and all its child widgets. 
+        #    Adjust 'font-size' to your desired size.
+        self.setStyleSheet("""
+            QGroupBox, QGroupBox * {
+                font-size: 12pt;
+            }
+        """)
+
+        # 2) Main horizontal layout: two columns
         self.main_layout = QHBoxLayout(self)
         self.main_layout.setContentsMargins(5, 5, 5, 5)
 
-        # Columns
         self.col1 = QVBoxLayout()
         self.col2 = QVBoxLayout()
 
-        # Keep references to labels for dynamic font sizing
+        # We'll store references to the labels if needed later
         self.labels_col1 = []
         self.labels_col2 = []
 
@@ -51,12 +64,10 @@ class LiveDataPanel(QGroupBox):
         self.lbl_onState  = QLabel("On?: ---")
         self.lbl_errorPct = QLabel("Err%: ---")
         self.lbl_setpt    = QLabel("Setpt: ---")
-        self.lbl_flow     = QLabel("Flow: ---")       # Will display "mL/min"
+        self.lbl_flow     = QLabel("Flow: ---")  # Will display "mL/min"
         self.lbl_temp     = QLabel("Temp: ---")
         self.lbl_volt     = QLabel("Volt: ---")
         self.lbl_bubble   = QLabel("Bubble: ---")
-
-        # New label for total volume in mL
         self.lbl_totalVolume = QLabel("Total Vol: ---")
 
         self.labels_col1.extend([
@@ -102,62 +113,38 @@ class LiveDataPanel(QGroupBox):
             self.col2.addWidget(lbl)
         self.col2.addStretch(1)
 
-        # Add the two columns to the main layout
+        # 3) Add both columns to the main layout
         self.main_layout.addLayout(self.col1)
         self.main_layout.addLayout(self.col2)
 
-    def resizeEvent(self, event):
-        super().resizeEvent(event)
-
-        w = self.width()
-        h = self.height()
-        min_dim = min(w, h)
-
-        # Approximate font size from the smaller dimension
-        font_size = int(min_dim * 0.10)
-        font_size = max(10, min(font_size, 24))
-
-        # Update spacing
-        spacing_cols = min(30, int(w * 0.03))
-        spacing_rows = min(20, int(h * 0.01))
-
-        self.main_layout.setSpacing(spacing_cols)
-        self.col1.setSpacing(spacing_rows)
-        self.col2.setSpacing(spacing_rows)
-
-        # Update label font sizes
-        stylesheet = f"font-size: {font_size}px; font-weight: bold;"
-        for lbl in (self.labels_col1 + self.labels_col2):
-            lbl.setStyleSheet(stylesheet)
-
-    def update_data(self,
-                    setpt_val,
-                    flow_val,
-                    temp_val,
-                    volt_val,
-                    bubble_bool,
-                    p_val=None,
-                    i_val=None,
-                    d_val=None,
-                    pid_out_val=None,
-                    error_pct=None,
-                    on_state=None,
-                    mode_val=None,
-                    p_gain=None,
-                    i_gain=None,
-                    d_gain=None,
-                    filtered_err=None,
-                    current_alpha=None,
-                    total_flow_ml=None  # <-- changed from total_flow_liters
-                    ):
+    def update_data(
+            self,
+            setpt_val,
+            flow_val,
+            temp_val,
+            volt_val,
+            bubble_bool,
+            p_val=None,
+            i_val=None,
+            d_val=None,
+            pid_out_val=None,
+            error_pct=None,
+            on_state=None,
+            mode_val=None,
+            p_gain=None,
+            i_gain=None,
+            d_gain=None,
+            filtered_err=None,
+            current_alpha=None,
+            total_flow_ml=None
+        ):
         """
         Update the UI with new data.
 
-        We expect:
+        Typically:
         - flow_val: mL/min
         - total_flow_ml: total volume in mL
         """
-
         # ---------- COLUMN 1 ----------
         if mode_val is not None:
             self.lbl_mode.setText(f"Mode: {mode_val}")
@@ -165,8 +152,7 @@ class LiveDataPanel(QGroupBox):
             self.lbl_mode.setText("Mode: ---")
 
         if on_state is not None:
-            on_str = "Yes" if on_state else "No"
-            self.lbl_onState.setText(f"On?: {on_str}")
+            self.lbl_onState.setText(f"On?: {'Yes' if on_state else 'No'}")
         else:
             self.lbl_onState.setText("On?: ---")
 
@@ -176,15 +162,11 @@ class LiveDataPanel(QGroupBox):
             self.lbl_errorPct.setText("Err%: ---")
 
         self.lbl_setpt.setText(f"Setpt: {setpt_val:.3f}")
-
-        # Flow in mL/min
         self.lbl_flow.setText(f"Flow: {flow_val:.3f} mL/min")
-
         self.lbl_temp.setText(f"Temp: {temp_val:.2f}")
         self.lbl_volt.setText(f"Volt: {volt_val:.2f}")
         self.lbl_bubble.setText(f"Bubble: {'Yes' if bubble_bool else 'No'}")
 
-        # Show total volume in mL
         if total_flow_ml is not None:
             self.lbl_totalVolume.setText(f"Total Vol: {total_flow_ml:.3f} mL")
         else:

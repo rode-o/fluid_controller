@@ -6,7 +6,7 @@ echo Building Controller_Interface.exe...
 pyinstaller ^
   --name Controller_Interface ^
   --icon "src\controller_interface\resources\slavus_leaf_logo.ico" ^
-  --add-data "src\controller_interface\resources\slavus_leaf_logo.ico;resources" ^
+  --add-data "src\controller_interface\resources\0bd68deb-b2ce-4c28-8bed-cf06a699996e.ico;resources" ^
   --add-data "src\controller_interface\resources\slavus_leaf_logo.png;resources" ^
   --add-data "src\controller_interface\gui\themes\common.qss;controller_interface/gui/themes" ^
   --noconsole ^

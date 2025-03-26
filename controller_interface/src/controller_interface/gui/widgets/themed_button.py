@@ -4,10 +4,10 @@ from PyQt5.QtCore import Qt
 
 class ThemedButton(QPushButton):
     """
-    A minimal ThemedButton that:
-      - Applies only background & text color in _apply_base_style(),
-      - No paintEvent overrides (so no repeated style lines),
-      - Leaves corner-radius, padding, font-size to be overridden by the parent code.
+    A ThemedButton that:
+      - Applies a 10pt font, corner-radius, padding in a base style,
+      - Chooses background/text colors in normal, hover, pressed, and checked states,
+      - Distinguishes between a 'dark' variant and a 'light' variant.
     """
 
     def __init__(self, text="", is_dark=True, parent=None):
@@ -19,22 +19,53 @@ class ThemedButton(QPushButton):
         self._apply_base_style()
 
     def _apply_base_style(self):
-        """Just sets color (bg_color, text_color). No padding, no corner rounding here."""
+        """
+        Sets normal, hover, pressed, and (optionally) checked states.
+        If you want the button to use the checked state, call setCheckable(True).
+        """
+
+        # Common styling for both variants:
+        base_style = """
+            font-size: 10pt;
+            border-radius: 8px;
+            padding: 10px 20px;
+            border: none;
+        """
+
         if self._is_dark:
-            bg_color = "#333"  # dark
-            text_color = "#eee"
+            # DARK variant
+            normal_bg   = "#333"
+            text_color  = "#eee"
+            hover_bg    = "#444"
+            pressed_bg  = "#222"
+            checked_bg  = "#2ecc71"  # bright green
         else:
-            bg_color = "#ddd"  # light
-            text_color = "#111"
+            # EVEN MORE GRAY light variant
+            normal_bg   = "#e0e0e0"
+            text_color  = "#333"
+            hover_bg    = "#d0d0d0"
+            pressed_bg  = "#bfbfbf"
+            checked_bg  = "#7a7a7a"
 
         style = f"""
-            QPushButton {{
-                background-color: {bg_color};
-                color: {text_color};
-                border: none;
-            }}
-            QPushButton:hover {{
-                opacity: 0.9;
-            }}
+        QPushButton {{
+            {base_style}
+            background-color: {normal_bg};
+            color: {text_color};
+        }}
+        /* Hover */
+        QPushButton:hover {{
+            background-color: {hover_bg};
+        }}
+        /* Pressed */
+        QPushButton:pressed {{
+            background-color: {pressed_bg};
+        }}
+        /* Checked (toggle) */
+        QPushButton:checked {{
+            background-color: {checked_bg};
+            color: #fff; /* keep text white if toggled */
+        }}
         """
+
         self.setStyleSheet(style)

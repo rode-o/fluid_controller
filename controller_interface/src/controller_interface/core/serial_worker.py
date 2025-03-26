@@ -28,7 +28,7 @@ class SerialWorker(QThread):
     def run(self):
         try:
             self.ser = serial.Serial(self.port, self.baud, timeout=1)
-            print(f"[INFO] Opened {self.port} at {self.baud} baud.")
+            print(f"[INFO] Opened woot woot {self.port} at {self.baud} baud.")
 
             while not self.stop_event.is_set():
                 line = self.ser.readline().decode("utf-8", errors="ignore").strip()

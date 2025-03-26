@@ -1,4 +1,7 @@
 import time
+import getpass
+from datetime import datetime
+
 from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QMessageBox,
     QSplitter, QSizePolicy
@@ -7,91 +10,99 @@ from PyQt5.QtCore import Qt, pyqtSignal
 
 from controller_interface.core.serial_worker import SerialWorker
 from controller_interface.core.flow_volume_tracker import FlowVolumeTracker
+from controller_interface.core.run_manager import RunManager
 from controller_interface.gui.panels.tuning_control_panel import TuningControlPanel
 from controller_interface.gui.panels.live_data_panel import LiveDataPanel
 from controller_interface.gui.plots.tuning_plot_manager import TuningPlotManager
 from controller_interface.gui.widgets.themed_button import ThemedButton
 
+
 class PidTuningView(QWidget):
     """
-    A QWidget for advanced PID monitoring.
+    A QWidget for advanced PID monitoring and data logging.
+    - Always runs post-analysis at the end of capture (no skipping).
+    - Logs extended columns (pGain, iGain, dGain, etc.) to CSV.
+    - Updates LiveDataPanel for real-time flow, setpt, PID terms, etc.
+    - Includes a userStable toggle from TuningControlPanel.
+    - Passes user-selected fluidDensity to post-analysis.
 
-    This version:
-      - Resets volume each time the device transitions from OFF -> ON.
-      - Leaves volume unchanged when the device goes from ON -> OFF.
-      - Device flow is in mL/min, but FlowVolumeTracker uses liters internally.
+    Removed the style sheet from this view so ThemedButton colors are not overridden.
     """
 
-    goHomeSignal = pyqtSignal()  # for returning to Home
+    goHomeSignal = pyqtSignal()  # for navigating back home
 
     def __init__(self, settings, parent=None):
         super().__init__(parent)
         self.settings = settings
+
+        # Thread & run manager references
         self.serial_thread = None
+        self.run_manager = None
         self.start_time = None
 
-        # Keep track of the last known on/off state
-        # None means we haven't received any data yet
+        # Track on->off transitions
         self.last_on_state = None
 
-        # FlowVolumeTracker: stores volume internally in liters
+        # Local bool for userStable
+        self.data_is_stable = False
+
+        # Flow volume
         self.flow_tracker = FlowVolumeTracker(data_file="flow_volume.json")
+
+        # Panels
+        self.tuning_panel = TuningControlPanel(settings=self.settings)
+        self.live_data_panel = LiveDataPanel()
 
         self._init_ui()
         self._load_settings()
 
     def _init_ui(self):
         main_layout = QVBoxLayout(self)
-        main_layout.setContentsMargins(0, 0, 0, 0)
 
+        # Create a vertical splitter (top vs bottom)
         splitter = QSplitter(Qt.Vertical)
         splitter.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
 
-        # ========== TOP CONTAINER: Tuning + Live Data ==========
+        # Top container: Tuning panel + Live Data
         top_container = QWidget()
         top_hbox = QHBoxLayout(top_container)
-        top_hbox.setContentsMargins(0, 0, 0, 0)
-
-        self.tuning_panel = TuningControlPanel()
-        self.live_data_panel = LiveDataPanel()
-
-        top_hbox.addWidget(self.tuning_panel, stretch=2)
-        top_hbox.addWidget(self.live_data_panel, stretch=1)
-
-        top_container.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
+        top_hbox.addWidget(self.tuning_panel, stretch=7)  # ~70%
+        top_hbox.addWidget(self.live_data_panel, stretch=3)  # ~30%
         splitter.addWidget(top_container)
 
-        # ========== PLOT CONTAINER ==========
+        # Bottom container: the Plot Manager
         plot_container = QWidget()
-        plot_container.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         plot_layout = QVBoxLayout(plot_container)
-        plot_layout.setContentsMargins(0, 0, 0, 0)
         self.tuning_plot_manager = TuningPlotManager(plot_layout)
         splitter.addWidget(plot_container)
 
+        # 50-50 vertical split
         splitter.setStretchFactor(0, 1)
-        splitter.setStretchFactor(1, 7)
+        splitter.setStretchFactor(1, 1)
 
         main_layout.addWidget(splitter)
 
-        # ========== BOTTOM ROW: Home Button ==========
+        # Bottom row: Home button
         bottom_row = QHBoxLayout()
         bottom_row.addStretch(1)
+
         self.btn_home = ThemedButton("Home", is_dark=True)
         self.btn_home.clicked.connect(self._on_home_clicked)
         bottom_row.addWidget(self.btn_home)
-        main_layout.addLayout(bottom_row)
 
+        main_layout.addLayout(bottom_row)
         self.setLayout(main_layout)
 
-        # Connect TuningControlPanel signals
+        # Connect signals
         self.tuning_panel.startSignal.connect(self._on_start_clicked)
         self.tuning_panel.stopSignal.connect(self._on_stop_clicked)
+        self.tuning_panel.stabilityChanged.connect(self._on_stability_changed)
 
-    # ------------------- Load/Save QSettings -------------------
     def _load_settings(self):
+        """Load user settings (like last port, baud, time_window)."""
         if not self.settings:
             return
+
         last_port = self.settings.value("tuning_last_port", "")
         if last_port:
             idx = self.tuning_panel.port_combo.findText(last_port)
@@ -106,16 +117,31 @@ class PidTuningView(QWidget):
         last_tw = self.settings.value("tuning_time_window", 10.0, type=float)
         self.tuning_panel.time_window_spin.setValue(last_tw)
 
+        # TuningControlPanel-specific settings (including fluid density)
+        self.tuning_panel.load_settings()
+
     def _save_settings(self):
+        """Save user settings (like chosen port, baud, etc.)."""
         if not self.settings:
             return
+
         self.settings.setValue("tuning_last_port", self.tuning_panel.get_port())
         self.settings.setValue("tuning_last_baud", self.tuning_panel.get_baud())
         self.settings.setValue("tuning_time_window", self.tuning_panel.get_time_window())
 
-    # ------------------- Start/Stop Signals -------------------
+        # TuningControlPanel-specific settings
+        self.tuning_panel.save_settings()
+
+    # ---------------------------------------------------
+    # Navigation
+    # ---------------------------------------------------
+    def _on_home_clicked(self):
+        self.goHomeSignal.emit()
+
+    # ---------------------------------------------------
+    # Start/Stop signals
+    # ---------------------------------------------------
     def _on_start_clicked(self):
-        """Called when TuningControlPanel emits startSignal."""
         self._save_settings()
         port = self.tuning_panel.get_port()
         if port == "No ports found":
@@ -133,18 +159,39 @@ class PidTuningView(QWidget):
         self._start_capture(port, baud, time_window)
 
     def _on_stop_clicked(self):
-        """Called when TuningControlPanel emits stopSignal."""
         self._stop_capture()
 
-    # ------------------- Navigation -------------------
-    def _on_home_clicked(self):
-        self.goHomeSignal.emit()
+    # ---------------------------------------------------
+    # Stability toggling
+    # ---------------------------------------------------
+    def _on_stability_changed(self, stable: bool):
+        """
+        Called whenever user toggles "Mark Data as Stable" in TuningControlPanel.
+        We store it in a local boolean to write to the CSV each row.
+        """
+        print(f"[DEBUG] userStable toggled => {stable}")
+        self.data_is_stable = stable
 
-    # ------------------- Start/Stop Capture Logic -------------------
+    # ---------------------------------------------------
+    # Capture logic
+    # ---------------------------------------------------
     def _start_capture(self, port, baud, time_window):
-        if self.serial_thread is not None:
+        if self.serial_thread:
             QMessageBox.information(self, "PID", "Already capturing data.")
             return
+
+        data_root = self.tuning_panel.get_data_root()
+        if not data_root:
+            QMessageBox.warning(self, "No Data Dir", "Please pick a data directory.")
+            return
+
+        test_name = self.tuning_panel.get_test_name() or "untitled"
+        user_name = getpass.getuser()
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+
+        self.run_manager = RunManager(data_root)
+        self.run_manager.create_run_folders(test_name, user_name, timestamp)
+        self.run_manager.open_csv(test_name, user_name, timestamp)
 
         self.tuning_plot_manager.start_run()
         self.tuning_plot_manager.set_time_window(time_window)
@@ -157,99 +204,118 @@ class PidTuningView(QWidget):
 
         self.start_time = time.time()
 
-        # Toggle button states
         self.tuning_panel.btn_start.setEnabled(False)
         self.tuning_panel.btn_stop.setEnabled(True)
 
         QMessageBox.information(
-            self, "Capture",
-            f"Started streaming on {port} @ {baud} (time window={time_window}s)."
+            self,
+            "Capture",
+            f"Started streaming on {port} @ {baud} (time={time_window}s)\n"
+            f"Logging to: {self.run_manager.get_run_folder()}"
         )
 
     def _stop_capture(self):
         if self.serial_thread:
             self.serial_thread.stop()
-        # We'll re-enable start in _on_finished()
 
-    # ------------------- Thread Callbacks -------------------
     def _on_new_data(self, data_dict):
-        """
-        Called when SerialWorker emits 'new_data'.
-
-        The device's flow is in mL/min, but FlowVolumeTracker uses liters internally.
-        We only reset volume when the device transitions from OFF -> ON.
-        """
-
-        # 1) Update the plot
-        elapsed = time.time() - self.start_time if self.start_time else 0.0
-        self.tuning_plot_manager.update_data(data_dict, elapsed)
-
-        # 2) Grab on_state from data (True => on, False => off)
+        # Possibly handle on->off transitions
         on_state = data_dict.get("on", None)
-
-        # 3) If device transitions from OFF -> ON, reset volume
         if self.last_on_state is False and on_state is True:
             self.flow_tracker.reset_volume()
 
-        # 4) Parse flow in mL/min, convert to L/min
+        # Flow is mL/min from the sensor
         flow_val_ml_min = float(data_dict.get("flow", 0.0))
-        flow_val_l_min = flow_val_ml_min / 1000.0
+        self.flow_tracker.update_volume(flow_val_ml_min)
 
-        # 5) Update volume in liters
-        self.flow_tracker.update_volume(flow_val_l_min)
+        if self.run_manager:
+            row = [
+                data_dict.get("timeMs", 0),
+                flow_val_ml_min,
+                data_dict.get("setpt", 0.0),
+                data_dict.get("temp", 0.0),
+                data_dict.get("bubble", False),
+                data_dict.get("volt", 0.0),
+                data_dict.get("on", False),
+                data_dict.get("errorPct", 0.0),
+                data_dict.get("pidOut", 0.0),
+                data_dict.get("P", 0.0),
+                data_dict.get("I", 0.0),
+                data_dict.get("D", 0.0),
+                data_dict.get("pGain", 0.0),
+                data_dict.get("iGain", 0.0),
+                data_dict.get("dGain", 0.0),
+                data_dict.get("filteredErr", 0.0),
+                data_dict.get("currentAlpha", 0.0),
+                self.flow_tracker.get_total_volume_ml(),
+                self.data_is_stable
+            ]
+            self.run_manager.write_csv_row(row)
 
-        # 6) Retrieve total volume in liters, convert to mL
-        total_volume_liters = self.flow_tracker.get_total_volume_ml()
-        total_volume_ml = total_volume_liters * 1000.0
+        elapsed = time.time() - self.start_time if self.start_time else 0.0
+        self.tuning_plot_manager.update_data(data_dict, elapsed)
 
-        # 7) Extract other fields
-        setpt_val = float(data_dict.get("setpt", 0.0))
-        temp_val  = float(data_dict.get("temp",  0.0))
-        volt_val  = float(data_dict.get("volt",  0.0))
-        bubble    = bool(data_dict.get("bubble", False))
-        p_val     = float(data_dict.get("P",     0.0))
-        i_val     = float(data_dict.get("I",     0.0))
-        d_val     = float(data_dict.get("D",     0.0))
-        out_val   = float(data_dict.get("pidOut",0.0))
+        setpt_val   = float(data_dict.get("setpt", 0.0))
+        temp_val    = float(data_dict.get("temp", 0.0))
+        volt_val    = float(data_dict.get("volt", 0.0))
+        bubble_bool = bool(data_dict.get("bubble", False))
+        p_val       = float(data_dict.get("P", 0.0))
+        i_val       = float(data_dict.get("I", 0.0))
+        d_val       = float(data_dict.get("D", 0.0))
+        pid_out_val = float(data_dict.get("pidOut", 0.0))
 
-        error_pct = data_dict.get("errorPct", None)
-        mode_val  = data_dict.get("mode", None)
-        p_gain    = data_dict.get("pGain", None)
-        i_gain    = data_dict.get("iGain", None)
-        d_gain    = data_dict.get("dGain", None)
-        filt_err  = data_dict.get("filteredErr", None)
-        alpha_val = data_dict.get("currentAlpha", None)
+        error_pct     = data_dict.get("errorPct", None)
+        mode_val      = data_dict.get("mode", None)
+        p_gain        = data_dict.get("pGain", None)
+        i_gain        = data_dict.get("iGain", None)
+        d_gain        = data_dict.get("dGain", None)
+        filtered_err  = data_dict.get("filteredErr", None)
+        current_alpha = data_dict.get("currentAlpha", None)
+        total_flow_ml = self.flow_tracker.get_total_volume_ml()
 
-        # 8) Update LiveDataPanel
         self.live_data_panel.update_data(
-            flow_val=flow_val_ml_min,
-            total_flow_ml=total_volume_ml,
             setpt_val=setpt_val,
+            flow_val=flow_val_ml_min,
             temp_val=temp_val,
             volt_val=volt_val,
-            bubble_bool=bubble,
+            bubble_bool=bubble_bool,
             p_val=p_val,
             i_val=i_val,
             d_val=d_val,
-            pid_out_val=out_val,
+            pid_out_val=pid_out_val,
             error_pct=error_pct,
             on_state=on_state,
             mode_val=mode_val,
             p_gain=p_gain,
             i_gain=i_gain,
             d_gain=d_gain,
-            filtered_err=filt_err,
-            current_alpha=alpha_val
+            filtered_err=filtered_err,
+            current_alpha=current_alpha,
+            total_flow_ml=total_flow_ml
         )
 
-        # 9) Remember on_state for next iteration
         self.last_on_state = on_state
 
     def _on_finished(self):
-        self.serial_thread = None
+        if self.run_manager:
+            folder_path = self.run_manager.get_run_folder()
+            self.run_manager.close_csv()
+
+            fluid_density = self.tuning_panel.get_fluid_density()
+            self.run_manager.run_post_analysis(fluid_density=fluid_density)
+
+            QMessageBox.information(
+                self,
+                "Analysis Complete",
+                f"Analysis complete.\nResults in:\n{folder_path}"
+            )
+            self.run_manager = None
+
+        if self.serial_thread:
+            self.serial_thread = None
+
         self.tuning_panel.btn_start.setEnabled(True)
         self.tuning_panel.btn_stop.setEnabled(False)
-        QMessageBox.information(self, "Capture", "Data streaming stopped.")
 
     def _on_error(self, msg):
         QMessageBox.critical(self, "Capture Error", msg)

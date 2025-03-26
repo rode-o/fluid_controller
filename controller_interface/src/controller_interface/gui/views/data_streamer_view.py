@@ -5,7 +5,7 @@ from datetime import datetime
 
 from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QMessageBox,
-    QInputDialog, QSpacerItem, QSizePolicy
+    QInputDialog, QFileDialog, QSplitter, QSizePolicy
 )
 from PyQt5.QtCore import Qt, pyqtSignal
 
@@ -14,23 +14,27 @@ from controller_interface.core.run_manager import RunManager
 from controller_interface.core.serial_worker import SerialWorker
 from controller_interface.gui.panels.controls_panel import ControlsPanel
 from controller_interface.gui.panels.live_data_panel import LiveDataPanel
-# Make sure plot_manager.py has the updated logic for bubble line + time window
 from controller_interface.gui.plots.plot_manager import PlotManager
 
 # Minimal ThemedButton (no paintEvent override)
 from controller_interface.gui.widgets.themed_button import ThemedButton
 
+
 class DataStreamerView(QWidget):
     """
-    A QWidget for real-time data streaming. Placed inside a QStackedWidget.
-      - Shows flow, setpt, volt, temp, bubble in PlotManager (no PID terms).
-      - Displays P, I, D, pidOut in LiveDataPanel.
-      - Logs data to CSV but doesn't plot PID terms here.
-      - Has a "Home" button at the bottom to return to the home view,
-        with dynamic rounding, padding, etc. in resizeEvent.
+    A QWidget for real-time data streaming, placed inside a QStackedWidget.
+
+    Layout approach:
+      - A QSplitter (vertical) divides:
+         (A) Top container: ControlsPanel + LiveDataPanel (3:1 side-by-side).
+         (B) PlotManager area.
+      - A bottom row (outside splitter) has a "Home" button.
+      - This allows the user to drag-resize the vertical splitter as needed.
+
+    The 'live_data_panel' receives data from on_new_data(...).
     """
 
-    goHomeSignal = pyqtSignal()  # Signal emitted when user clicks "Home"
+    goHomeSignal = pyqtSignal()  # Emitted when user clicks "Home"
 
     def __init__(self, settings, parent=None):
         super().__init__(parent)
@@ -50,27 +54,55 @@ class DataStreamerView(QWidget):
         self._init_ui()
 
     def _init_ui(self):
+        """
+        Build the layout with a QSplitter for top/bottom sections:
+          top => (ControlsPanel + LiveDataPanel)
+          bottom => PlotManager
+        And then a bottom row for the Home button.
+        """
         # Main vertical layout
         self.main_layout = QVBoxLayout(self)
         self.main_layout.setContentsMargins(10, 10, 10, 10)
 
-        # 1) Top row: ControlsPanel + LiveDataPanel side-by-side
-        self.top_row = QHBoxLayout()
-        self.controls_panel  = ControlsPanel(self.settings)
+        # Create a vertical splitter
+        splitter = QSplitter(Qt.Vertical)
+        splitter.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+
+        # ------------------- TOP WIDGET: ControlsPanel + LiveDataPanel -------------------
+        top_widget = QWidget()
+        top_layout = QHBoxLayout(top_widget)
+        top_layout.setContentsMargins(0, 0, 0, 0)
+
+        self.controls_panel = ControlsPanel(self.settings)
         self.live_data_panel = LiveDataPanel()
 
-        self.top_row.addWidget(self.controls_panel)
-        self.top_row.addWidget(self.live_data_panel)
-        # e.g., 3:1 width ratio
-        self.top_row.setStretch(0, 3)
-        self.top_row.setStretch(1, 1)
-        self.main_layout.addLayout(self.top_row)
+        # Place controls and live data side-by-side in a 3:1 ratio
+        top_layout.addWidget(self.controls_panel, stretch=3)
+        top_layout.addWidget(self.live_data_panel, stretch=1)
 
-        # 2) Middle: PlotManager
-        self.plot_manager = PlotManager(self.main_layout)  
-        # Make sure your 'plot_manager.py' has the bubble + time_window logic
+        splitter.addWidget(top_widget)
 
-        # 3) Bottom: "Home" button
+        # ------------------- BOTTOM WIDGET: PlotManager -------------------
+        # If PlotManager is a "widget-based" approach, we can embed it in another widget:
+        plot_widget = QWidget()
+        plot_widget.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+
+        plot_layout = QVBoxLayout(plot_widget)
+        plot_layout.setContentsMargins(0, 0, 0, 0)
+
+        # PlotManager expects a layout parent; pass in plot_layout
+        self.plot_manager = PlotManager(plot_layout)
+        splitter.addWidget(plot_widget)
+
+        # Assign stretch factors so top is smaller by default
+        # e.g. top=3, bottom=6 => top ~ 1/3, bottom ~ 2/3 initially
+        splitter.setStretchFactor(0, 3)
+        splitter.setStretchFactor(1, 6)
+
+        # Add the splitter to our main layout
+        self.main_layout.addWidget(splitter)
+
+        # ------------------- BOTTOM ROW: "Home" button -------------------
         bottom_layout = QHBoxLayout()
         bottom_layout.addStretch(1)
 
@@ -86,40 +118,7 @@ class DataStreamerView(QWidget):
         self.controls_panel.changeDirSignal.connect(self.change_save_dir)
 
     # --------------------------------------------------------------------------
-    # Re-sizing logic
-    # --------------------------------------------------------------------------
-    def resizeEvent(self, event):
-        super().resizeEvent(event)
-
-        total_height = self.height()
-
-        # Let's make the top row ~10% of total height
-        top_row_height = int(total_height * 0.10)
-        self.controls_panel.setFixedHeight(top_row_height)
-        self.live_data_panel.setFixedHeight(top_row_height)
-
-        # The PlotManager + bottom button fill the remainder
-        # Now handle the Home button
-        home_height = max(40, int(total_height * 0.03))
-
-        font_size = max(12, home_height // 2)
-        pad_vert = int(home_height * 0.15)
-        pad_horz = int(home_height * 0.3)
-        corner_radius = home_height // 2
-
-        # Style snippet for the home button
-        home_style = f"""
-            QPushButton {{
-                font-size: {font_size}px;
-                padding: {pad_vert}px {pad_horz}px;
-                border-radius: {corner_radius}px;
-            }}
-        """
-        self.btn_home.setFixedHeight(home_height)
-        self.btn_home.setStyleSheet(self.btn_home.styleSheet() + home_style)
-
-    # --------------------------------------------------------------------------
-    # Navigation: "Home" button
+    # "Home" button
     # --------------------------------------------------------------------------
     def _on_home_clicked(self):
         self.goHomeSignal.emit()
@@ -128,7 +127,6 @@ class DataStreamerView(QWidget):
     # Change data directory
     # --------------------------------------------------------------------------
     def change_save_dir(self):
-        from PyQt5.QtWidgets import QFileDialog
         new_dir = QFileDialog.getExistingDirectory(self, "Select Data Directory", os.getcwd())
         if new_dir:
             self.settings.setValue("data_root", new_dir)
@@ -159,6 +157,7 @@ class DataStreamerView(QWidget):
         user_name = getpass.getuser()
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
 
+        # Create RunManager
         self.run_manager = RunManager(data_root)
         self.run_manager.create_run_folders(test_name, user_name, timestamp)
         self.run_manager.open_csv(test_name, user_name, timestamp)
@@ -166,7 +165,7 @@ class DataStreamerView(QWidget):
         # Save all control panel settings
         self.controls_panel.save_settings()
 
-        # --------------------- Retrieve Plot Window from Controls Panel ---------------------
+        # Retrieve Plot Window from Controls Panel
         time_window = float(self.controls_panel.time_window_spin.value())
         self.plot_manager.set_time_window(time_window)
 
@@ -210,31 +209,48 @@ class DataStreamerView(QWidget):
         self.on_serial_finished()
 
     def on_serial_finished(self):
+        """
+        Called when the serial thread is done (either normally or due to error).
+        Safely handle the run_manager if it exists, and run post-analysis only if
+        we actually have a valid run manager.
+        """
         if self.run_manager:
             self.run_manager.close_csv()
+            QMessageBox.information(self, "Capture Stopped", "Capture finished.")
+            self.controls_panel.enable_start(True)
+            self.controls_panel.enable_stop(False)
+            self.serial_thread = None
 
-        QMessageBox.information(self, "Capture Stopped", "Capture finished.")
-        self.controls_panel.enable_start(True)
-        self.controls_panel.enable_stop(False)
-        self.serial_thread = None
+            # Run post-analysis
+            stable_w = self.controls_panel.stable_window_spin.value()
+            thresh   = self.controls_panel.stable_threshold_spin.value()
+            fluid_d  = self.controls_panel.fluid_density_spin.value()
 
-        # Run post-analysis
-        stable_w = self.controls_panel.stable_window_spin.value()
-        thresh   = self.controls_panel.stable_threshold_spin.value()
-        fluid_d  = self.controls_panel.fluid_density_spin.value()
+            self.run_manager.run_post_analysis(stable_w, thresh, fluid_d)
 
-        self.run_manager.run_post_analysis(stable_w, thresh, fluid_d)
+            run_folder = self.run_manager.get_run_folder()
+            QMessageBox.information(self, "Analysis Complete",
+                                    f"Results in:\n{run_folder}")
 
-        run_folder = self.run_manager.get_run_folder()
-        QMessageBox.information(self, "Analysis Complete",
-                                f"Results in:\n{run_folder}")
-
-        self.run_manager = None
+            self.run_manager = None
+        else:
+            QMessageBox.information(self, "Capture Stopped", "Capture finished.")
+            self.controls_panel.enable_start(True)
+            self.controls_panel.enable_stop(False)
+            self.serial_thread = None
 
     # --------------------------------------------------------------------------
     # Handle incoming data
     # --------------------------------------------------------------------------
     def on_new_data(self, data_dict):
+        """
+        Called whenever the serial thread produces new data.
+        We log to CSV, update the LiveDataPanel, and feed data to PlotManager.
+
+        'data_dict' might have:
+          flow, setpt, temp, volt, bubble, errorPct, pidOut, P, I, D, ...
+        """
+        # Write row to CSV (if run_manager is open)
         row = [
             data_dict.get("timeMs",    0),
             data_dict.get("flow",      0.0),
@@ -247,34 +263,61 @@ class DataStreamerView(QWidget):
             data_dict.get("pidOut",    0.0),
             data_dict.get("P",         0.0),
             data_dict.get("I",         0.0),
-            data_dict.get("D",         0.0)
+            data_dict.get("D",         0.0),
         ]
         if self.run_manager:
             self.run_manager.write_csv_row(row)
 
-        # Update LiveDataPanel
-        flow_val    = float(data_dict.get("flow", 0.0))
-        setpt_val   = float(data_dict.get("setpt", 0.0))
-        temp_val    = float(data_dict.get("temp",  0.0))
-        volt_val    = float(data_dict.get("volt",  0.0))
-        bubble_bool = bool(data_dict.get("bubble", False))
+        # Extract fields for LiveDataPanel
+        flow_val    = float(data_dict.get("flow",   0.0))
+        setpt_val   = float(data_dict.get("setpt",  0.0))
+        temp_val    = float(data_dict.get("temp",   0.0))
+        volt_val    = float(data_dict.get("volt",   0.0))
+        bubble_bool = bool(data_dict.get("bubble",  False))
 
         p_val   = float(data_dict.get("P",       0.0))
         i_val   = float(data_dict.get("I",       0.0))
         d_val   = float(data_dict.get("D",       0.0))
         pid_out = float(data_dict.get("pidOut",  0.0))
 
+        error_pct     = data_dict.get("errorPct", None)
+        on_state      = data_dict.get("on", None)
+        mode_val      = data_dict.get("mode", None)
+        p_gain        = data_dict.get("pGain", None)
+        i_gain        = data_dict.get("iGain", None)
+        d_gain        = data_dict.get("dGain", None)
+        filtered_err  = data_dict.get("filtErr", None)
+        current_alpha = data_dict.get("alpha", None)
+        total_flow_ml = data_dict.get("totalVolume", None)
+
+        # Update LiveDataPanel with the above fields
         self.live_data_panel.update_data(
-            setpt_val, flow_val, temp_val, volt_val, bubble_bool,
-            p_val, i_val, d_val, pid_out
+            setpt_val,
+            flow_val,
+            temp_val,
+            volt_val,
+            bubble_bool,
+            p_val=p_val,
+            i_val=i_val,
+            d_val=d_val,
+            pid_out_val=pid_out,
+            error_pct=error_pct,
+            on_state=on_state,
+            mode_val=mode_val,
+            p_gain=p_gain,
+            i_gain=i_gain,
+            d_gain=d_gain,
+            filtered_err=filtered_err,
+            current_alpha=current_alpha,
+            total_flow_ml=total_flow_ml
         )
 
-        # Convert timeMs to "elapsed_s" for PlotManager
+        # Convert device time to local "elapsed_s" for PlotManager
         if self.start_time:
             current_time = time.time()
             elapsed_s = current_time - self.start_time
         else:
             elapsed_s = 0.0
 
-        # Pass data to PlotManager, which handles bubble= setpt if True, etc.
+        # Pass data to PlotManager
         self.plot_manager.update_data(data_dict, elapsed_s)
