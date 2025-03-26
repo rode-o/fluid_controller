@@ -25,7 +25,7 @@ class RunManager:
     def create_run_folders(self, test_name: str, user_name: str, timestamp: str):
         """
         Create the subfolders for a new run under data_root:
-         test_{testName}_{userName}_{timestamp}/raw/data, raw/plots, etc.
+         {testName}_{userName}_{timestamp}/raw/data, raw/plots, etc.
         """
         self.run_folder = os.path.join(self.data_root, f"{test_name}_{user_name}_{timestamp}")
         self.raw_data_dir = os.path.join(self.run_folder, "raw", "data")
@@ -83,19 +83,18 @@ class RunManager:
             self.csv_writer.writerow(row)
 
     def close_csv(self):
-        """
-        Close the CSV file.
-        """
+        """Close the CSV file if open."""
         if self.csv_file:
             self.csv_file.close()
             self.csv_file = None
         self.csv_writer = None
 
-    def run_post_analysis(self, fluid_density=None):
+    def run_post_analysis(self, fluid_density=None, total_flow=None):
         """
         After capture stops, call analyze_data with the relevant subfolders.
-        Now accepts 'fluid_density' and passes it to analyze_data so you
-        don't get the 'unexpected keyword argument' error.
+
+        Now also accepts 'fluid_density' and 'total_flow' so we can pass them
+        to analyze_data for logging or further analysis.
         """
         raw_csv = None
         if os.path.isdir(self.raw_data_dir):
@@ -108,22 +107,15 @@ class RunManager:
             print("[WARN] No raw CSV found for analysis.")
             return
 
-        # Pass fluid_density into analyze_data ONLY if your `analyze_data` signature
-        # supports it. For example:
-        #
-        #   def analyze_data(..., fluid_density=1.0):
-        #       ...
-        #
-        # If your analyze_data is truly "hard-coded" and does not accept fluid_density,
-        # simply remove ", fluid_density=fluid_density" below or update analyze_data to match.
-
+        # We pass fluid_density and total_flow into analyze_data
         analyze_data(
             csv_path=raw_csv,
             out_analysis_dir=self.proc_anal_dir,
             out_stable_data_dir=self.proc_stable_data_dir,
             out_stable_plots_dir=self.proc_stable_plots_dir,
             out_raw_plots_dir=self.raw_plots_dir,
-            fluid_density=fluid_density  # <-- new parameter
+            fluid_density=fluid_density,
+            total_flow=total_flow
         )
 
     def get_run_folder(self):

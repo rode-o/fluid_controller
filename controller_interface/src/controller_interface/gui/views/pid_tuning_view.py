@@ -24,9 +24,9 @@ class PidTuningView(QWidget):
     - Logs extended columns (pGain, iGain, dGain, etc.) to CSV.
     - Updates LiveDataPanel for real-time flow, setpt, PID terms, etc.
     - Includes a userStable toggle from TuningControlPanel.
-    - Passes user-selected fluidDensity to post-analysis.
+    - Passes user-selected fluidDensity and final flow volume to post-analysis.
 
-    Removed the style sheet from this view so ThemedButton colors are not overridden.
+    Style sheet is removed so ThemedButton's colors are not overridden.
     """
 
     goHomeSignal = pyqtSignal()  # for navigating back home
@@ -46,8 +46,8 @@ class PidTuningView(QWidget):
         # Local bool for userStable
         self.data_is_stable = False
 
-        # Flow volume
-        self.flow_tracker = FlowVolumeTracker(data_file="flow_volume.json")
+        # Flow volume (no JSON persistence)
+        self.flow_tracker = FlowVolumeTracker()
 
         # Panels
         self.tuning_panel = TuningControlPanel(settings=self.settings)
@@ -63,14 +63,14 @@ class PidTuningView(QWidget):
         splitter = QSplitter(Qt.Vertical)
         splitter.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
 
-        # Top container: Tuning panel + Live Data
+        # Top: Tuning panel + Live Data
         top_container = QWidget()
         top_hbox = QHBoxLayout(top_container)
         top_hbox.addWidget(self.tuning_panel, stretch=7)  # ~70%
         top_hbox.addWidget(self.live_data_panel, stretch=3)  # ~30%
         splitter.addWidget(top_container)
 
-        # Bottom container: the Plot Manager
+        # Bottom: Plot
         plot_container = QWidget()
         plot_layout = QVBoxLayout(plot_container)
         self.tuning_plot_manager = TuningPlotManager(plot_layout)
@@ -117,7 +117,7 @@ class PidTuningView(QWidget):
         last_tw = self.settings.value("tuning_time_window", 10.0, type=float)
         self.tuning_panel.time_window_spin.setValue(last_tw)
 
-        # TuningControlPanel-specific settings (including fluid density)
+        # TuningControlPanel-specific settings
         self.tuning_panel.load_settings()
 
     def _save_settings(self):
@@ -228,6 +228,7 @@ class PidTuningView(QWidget):
         flow_val_ml_min = float(data_dict.get("flow", 0.0))
         self.flow_tracker.update_volume(flow_val_ml_min)
 
+        # If logging to CSV
         if self.run_manager:
             row = [
                 data_dict.get("timeMs", 0),
@@ -252,45 +253,30 @@ class PidTuningView(QWidget):
             ]
             self.run_manager.write_csv_row(row)
 
+        # Update the plot
         elapsed = time.time() - self.start_time if self.start_time else 0.0
         self.tuning_plot_manager.update_data(data_dict, elapsed)
 
-        setpt_val   = float(data_dict.get("setpt", 0.0))
-        temp_val    = float(data_dict.get("temp", 0.0))
-        volt_val    = float(data_dict.get("volt", 0.0))
-        bubble_bool = bool(data_dict.get("bubble", False))
-        p_val       = float(data_dict.get("P", 0.0))
-        i_val       = float(data_dict.get("I", 0.0))
-        d_val       = float(data_dict.get("D", 0.0))
-        pid_out_val = float(data_dict.get("pidOut", 0.0))
-
-        error_pct     = data_dict.get("errorPct", None)
-        mode_val      = data_dict.get("mode", None)
-        p_gain        = data_dict.get("pGain", None)
-        i_gain        = data_dict.get("iGain", None)
-        d_gain        = data_dict.get("dGain", None)
-        filtered_err  = data_dict.get("filteredErr", None)
-        current_alpha = data_dict.get("currentAlpha", None)
+        # Update the live data panel
         total_flow_ml = self.flow_tracker.get_total_volume_ml()
-
         self.live_data_panel.update_data(
-            setpt_val=setpt_val,
+            setpt_val=float(data_dict.get("setpt", 0.0)),
             flow_val=flow_val_ml_min,
-            temp_val=temp_val,
-            volt_val=volt_val,
-            bubble_bool=bubble_bool,
-            p_val=p_val,
-            i_val=i_val,
-            d_val=d_val,
-            pid_out_val=pid_out_val,
-            error_pct=error_pct,
+            temp_val=float(data_dict.get("temp", 0.0)),
+            volt_val=float(data_dict.get("volt", 0.0)),
+            bubble_bool=bool(data_dict.get("bubble", False)),
+            p_val=float(data_dict.get("P", 0.0)),
+            i_val=float(data_dict.get("I", 0.0)),
+            d_val=float(data_dict.get("D", 0.0)),
+            pid_out_val=float(data_dict.get("pidOut", 0.0)),
+            error_pct=data_dict.get("errorPct", None),
             on_state=on_state,
-            mode_val=mode_val,
-            p_gain=p_gain,
-            i_gain=i_gain,
-            d_gain=d_gain,
-            filtered_err=filtered_err,
-            current_alpha=current_alpha,
+            mode_val=data_dict.get("mode", None),
+            p_gain=data_dict.get("pGain", None),
+            i_gain=data_dict.get("iGain", None),
+            d_gain=data_dict.get("dGain", None),
+            filtered_err=data_dict.get("filteredErr", None),
+            current_alpha=data_dict.get("currentAlpha", None),
             total_flow_ml=total_flow_ml
         )
 
@@ -301,8 +287,16 @@ class PidTuningView(QWidget):
             folder_path = self.run_manager.get_run_folder()
             self.run_manager.close_csv()
 
+            # Grab user-selected density
             fluid_density = self.tuning_panel.get_fluid_density()
-            self.run_manager.run_post_analysis(fluid_density=fluid_density)
+            # NEW: get the final total from FlowVolumeTracker
+            final_flow = self.flow_tracker.get_total_volume_ml()
+
+            # Pass both fluid_density and total_flow into run_post_analysis
+            self.run_manager.run_post_analysis(
+                fluid_density=fluid_density,
+                total_flow=final_flow  # new argument
+            )
 
             QMessageBox.information(
                 self,
