@@ -1,7 +1,6 @@
 # controller_interface/view/views/ui.py
 
 import time
-
 from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QMessageBox,
     QLabel, QSizePolicy
@@ -9,23 +8,51 @@ from PyQt5.QtWidgets import (
 from PyQt5.QtCore import Qt, pyqtSignal
 from PyQt5.QtGui import QPixmap
 
-# Example aggregator import:
-# from controller_interface import (
-#     UiController,
-#     TuningControlPanel,
-#     LiveDataPanel,
-#     TuningPlotManager,
-#     ThemedButton,
-#     resource_path
-# )
+# Ensure this import is present so Qt resources are registered:
+import controller_interface.resources.resources_rc
 
-# Or if you want direct imports (both are valid):
 from controller_interface.controller.ui_controller import UiController
 from controller_interface.view.panels.control import TuningControlPanel
 from controller_interface.view.panels.live_data import LiveDataPanel
 from controller_interface.view.plots.plot_manager import TuningPlotManager
 from controller_interface.view.widgets.themed_button import ThemedButton
-from controller_interface.utils.path_utils import resource_path
+
+
+class AspectRatioLabel(QLabel):
+    """
+    A QLabel that automatically scales its pixmap to fit the current size,
+    while preserving aspect ratio.
+    """
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self._original_pixmap = None
+
+    def setPixmap(self, pixmap: QPixmap):
+        """
+        Store the original QPixmap so we can scale it dynamically.
+        """
+        self._original_pixmap = pixmap
+        self._update_scaled_pixmap()
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        self._update_scaled_pixmap()
+
+    def _update_scaled_pixmap(self):
+        """
+        Scale the original pixmap to fit this label's current size,
+        preserving aspect ratio.
+        """
+        if self._original_pixmap is None:
+            return
+
+        label_size = self.size()
+        scaled = self._original_pixmap.scaled(
+            label_size,
+            Qt.KeepAspectRatio,
+            Qt.SmoothTransformation
+        )
+        super().setPixmap(scaled)
 
 
 class PidTuningView(QWidget):
@@ -55,46 +82,66 @@ class PidTuningView(QWidget):
         # We'll track local start time in the UI for plotting
         self.start_time = None
 
+        # We'll store data_root/test_name here for the final message
+        self.current_data_root = None
+        self.current_test_name = None
+
         self._init_ui()
         self._load_settings()
 
     def _init_ui(self):
         main_layout = QVBoxLayout(self)
-
         hbox_main = QHBoxLayout()
 
+        # -----------------------
         # Left column
+        # -----------------------
         left_vbox = QVBoxLayout()
-        left_vbox.addWidget(self.tuning_panel, stretch=0)
-        left_vbox.addWidget(self.live_data_panel, stretch=0)
+        left_vbox.setAlignment(Qt.AlignTop)
 
-        # Logo container
-        logo_container = QVBoxLayout()
-        logo_container.setContentsMargins(30, 125, 30, 125)
+        # Tuning Panel
+        self.tuning_panel.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Preferred)
+        left_vbox.addWidget(self.tuning_panel, 0, Qt.AlignTop)
 
-        self.lbl_logo = QLabel()
-        self.lbl_logo.setScaledContents(True)
-        self.lbl_logo.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Ignored)
+        # Live Data Panel
+        self.live_data_panel.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Maximum)
+        left_vbox.addWidget(self.live_data_panel, 0, Qt.AlignTop)
 
-        logo_path = resource_path("resources/salvus_full_logo_color.png")
-        pixmap = QPixmap(logo_path)
-        if not pixmap.isNull():
-            self.lbl_logo.setPixmap(pixmap)
-        else:
+        # Optional: keep them pinned at the top
+        left_vbox.addStretch(1)
+
+        # Logo label
+        self.lbl_logo = AspectRatioLabel()
+        self.lbl_logo.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Expanding)
+        self.lbl_logo.setAlignment(Qt.AlignCenter)
+
+        pixmap = QPixmap(":/salvus_full_logo_color.png")
+        if pixmap.isNull():
             self.lbl_logo.setText("Logo not found")
+        else:
+            self.lbl_logo.setPixmap(pixmap)
 
-        logo_container.addWidget(self.lbl_logo)
-        left_vbox.addLayout(logo_container, stretch=1)
+        left_vbox.addWidget(self.lbl_logo, 0, Qt.AlignCenter)
 
+        # Another stretch below
+        left_vbox.addStretch(1)
+
+        # Left container
         left_container = QWidget()
         left_container.setLayout(left_vbox)
-        hbox_main.addWidget(left_container, stretch=1)
+        # "Maximum" horizontally so the column doesn't expand beyond needed
+        left_container.setSizePolicy(QSizePolicy.Maximum, QSizePolicy.Preferred)
+        hbox_main.addWidget(left_container)
 
-        # Right column
+        # -----------------------
+        # Right column (plots)
+        # -----------------------
         plot_container = QWidget()
         plot_layout = QVBoxLayout(plot_container)
         self.tuning_plot_manager = TuningPlotManager(plot_layout)
-        hbox_main.addWidget(plot_container, stretch=9)
+
+        plot_container.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        hbox_main.addWidget(plot_container)
 
         main_layout.addLayout(hbox_main)
 
@@ -108,7 +155,7 @@ class PidTuningView(QWidget):
 
         self.setLayout(main_layout)
 
-        # Connect panel signals
+        # Connect signals
         self.tuning_panel.startSignal.connect(self._on_start_clicked)
         self.tuning_panel.stopSignal.connect(self._on_stop_clicked)
         self.tuning_panel.stabilityChanged.connect(self._on_stability_changed)
@@ -169,16 +216,19 @@ class PidTuningView(QWidget):
             return
 
         test_name = self.tuning_panel.get_test_name() or "untitled"
+        fluid_density = self.tuning_panel.get_fluid_density()
 
-        # Start the run via the controller
-        self.controller.start_capture(port, baud, data_root, test_name, time_window)
+        # Store these for reference in _on_finished
+        self.current_data_root = data_root
+        self.current_test_name = test_name
+
+        self.controller.start_capture(port, baud, data_root, test_name, time_window, fluid_density)
 
         # Initialize local plot
         self.tuning_plot_manager.start_run()
         self.tuning_plot_manager.set_time_window(time_window)
         self.start_time = time.time()
 
-        # UI feedback
         self.tuning_panel.btn_start.setEnabled(False)
         self.tuning_panel.btn_stop.setEnabled(True)
 
@@ -202,22 +252,16 @@ class PidTuningView(QWidget):
     # Controller Signals
     # -----------------------------------------------------------
     def _on_new_data(self, data_dict):
-        """
-        Called whenever the controller emits new_data_signal.
-        We update the plot and the LiveDataPanel.
-        """
-        # Update plot based on local start_time
         if self.start_time is not None:
             elapsed = time.time() - self.start_time
             self.tuning_plot_manager.update_data(data_dict, elapsed)
 
-        # For live data panel
         flow_val_ml_min = float(data_dict.get("flow", 0.0))
         setpt = float(data_dict.get("setpt", 0.0))
         temp = float(data_dict.get("temp", 0.0))
         volt = float(data_dict.get("volt", 0.0))
         bubble_bool = bool(data_dict.get("bubble", False))
-        total_flow_ml = self.controller.flow_tracker.get_total_volume_ml()  # optional direct attribute usage
+        total_flow_ml = self.controller.flow_tracker.get_total_volume_ml()
 
         self.live_data_panel.update_data(
             setpt_val=setpt,
@@ -242,12 +286,37 @@ class PidTuningView(QWidget):
 
     def _on_error(self, msg):
         QMessageBox.critical(self, "Capture Error", msg)
-        # Could handle partial-run logic here
 
     def _on_finished(self):
         """
         Called when the controller signals that capture/analysis is done.
+        We'll enable the Start button, disable the Stop button, and show
+        more specific info in the message box.
         """
         self.tuning_panel.btn_start.setEnabled(True)
         self.tuning_panel.btn_stop.setEnabled(False)
-        QMessageBox.information(self, "Analysis Complete", "Analysis complete.")
+
+        # Calculate elapsed time
+        elapsed_time = 0.0
+        if self.start_time is not None:
+            elapsed_time = time.time() - self.start_time
+
+        # Get total volume from the flow tracker (if available)
+        total_flow_ml = 0.0
+        if hasattr(self.controller, 'flow_tracker'):
+            total_flow_ml = self.controller.flow_tracker.get_total_volume_ml()
+
+        # Retrieve the test name / data root we stored in _on_start_clicked
+        test_name = self.current_test_name or "untitled"
+        data_root = self.current_data_root or "(unknown)"
+
+        # Compose a more informative message
+        msg = (
+            "Analysis complete.\n\n"
+            f"Test Name: {test_name}\n"
+            f"Data Directory: {data_root}\n"
+            f"Elapsed Time: {elapsed_time:.2f} seconds\n"
+            f"Total Flow: {total_flow_ml:.2f} mL\n"
+        )
+
+        QMessageBox.information(self, "Analysis Complete", msg)

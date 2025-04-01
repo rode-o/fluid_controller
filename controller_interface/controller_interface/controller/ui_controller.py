@@ -12,7 +12,6 @@ from controller_interface.model.run_manager import RunManager
 from controller_interface.model.serial_worker import SerialWorker
 from controller_interface.utils.logging_utils import logger
 
-
 class UiController(QObject):
     """
     Orchestrates capturing data from SerialWorker, logging to CSV with RunManager,
@@ -39,22 +38,31 @@ class UiController(QObject):
         # For timing (when run started)
         self.start_time: Optional[float] = None
 
+        # We'll store fluid density after user picks it in the UI
+        self._fluid_density: float = 1.0
+
     def start_capture(
         self,
         port: str,
         baud: int,
         data_root: str,
         test_name: str,
-        time_window: float
+        time_window: float,
+        fluid_density: float
     ) -> None:
         """
         Start capturing from the serial port at (port, baud), 
         create run folders under data_root using test_name, user_name, 
         and a timestamp, and begin logging to CSV.
+
+        fluid_density: the user-selected density from the UI (e.g. 0.977).
         """
         if self.serial_thread:
             logger.warning("Attempted to start capture but already capturing.")
             return
+
+        # Store user fluid density locally
+        self._fluid_density = fluid_density
 
         user_name = getpass.getuser()
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -100,33 +108,61 @@ class UiController(QObject):
             self.flow_tracker.reset_volume()
         self.last_on_state = on_state
 
+        # Calculate flow volume
         flow_val_ml_min = float(data_dict.get("flow", 0.0))
         self.flow_tracker.update_volume(flow_val_ml_min)
 
+        # -------------------------------------------------------
+        # 1) Compute the new time columns
+        # -------------------------------------------------------
+        now = time.time()
+        abs_time_iso = datetime.fromtimestamp(now).isoformat()
+        if self.start_time is not None:
+            delta_s = now - self.start_time
+        else:
+            delta_s = 0.0
+
+        rel_time_ms  = delta_s * 1000.0
+        rel_time_sec = delta_s
+        rel_time_min = delta_s / 60.0
+
+        # -------------------------------------------------------
+        # 2) Build the row in the correct order:
+        #    absTimeISO, relTimeMs, relTimeSec, relTimeMin, timeMs, ...
+        # -------------------------------------------------------
+        row = [
+            abs_time_iso,                       # absTimeISO
+            rel_time_ms,                        # relTimeMs
+            rel_time_sec,                       # relTimeSec
+            rel_time_min,                       # relTimeMin
+            data_dict.get("timeMs", 0),         # timeMs
+            flow_val_ml_min,                    # flow
+            data_dict.get("setpt", 0.0),        # setpt
+            data_dict.get("temp", 0.0),         # temp
+            data_dict.get("bubble", False),     # bubble
+            data_dict.get("volt", 0.0),         # volt
+            data_dict.get("on", False),         # on
+            data_dict.get("errorPct", 0.0),     # errorPct
+            data_dict.get("pidOut", 0.0),       # pidOut
+            data_dict.get("P", 0.0),            # P
+            data_dict.get("I", 0.0),            # I
+            data_dict.get("D", 0.0),            # D
+            data_dict.get("pGain", 0.0),        # pGain
+            data_dict.get("iGain", 0.0),        # iGain
+            data_dict.get("dGain", 0.0),        # dGain
+            data_dict.get("filteredErr", 0.0),  # filteredErr
+            data_dict.get("currentAlpha", 0.0), # currentAlpha
+            self.flow_tracker.get_total_volume_ml(),  # totalVolume
+            self.data_is_stable                 # userStable
+        ]
+
+        # -------------------------------------------------------
+        # 3) Write to CSV
+        # -------------------------------------------------------
         if self.run_manager:
-            row = [
-                data_dict.get("timeMs", 0),
-                flow_val_ml_min,
-                data_dict.get("setpt", 0.0),
-                data_dict.get("temp", 0.0),
-                data_dict.get("bubble", False),
-                data_dict.get("volt", 0.0),
-                data_dict.get("on", False),
-                data_dict.get("errorPct", 0.0),
-                data_dict.get("pidOut", 0.0),
-                data_dict.get("P", 0.0),
-                data_dict.get("I", 0.0),
-                data_dict.get("D", 0.0),
-                data_dict.get("pGain", 0.0),
-                data_dict.get("iGain", 0.0),
-                data_dict.get("dGain", 0.0),
-                data_dict.get("filteredErr", 0.0),
-                data_dict.get("currentAlpha", 0.0),
-                self.flow_tracker.get_total_volume_ml(),
-                self.data_is_stable
-            ]
             self.run_manager.write_csv_row(row)
 
+        # Finally emit the signal for the UI
         self.new_data_signal.emit(data_dict)
 
     def _on_finished(self) -> None:
@@ -138,10 +174,10 @@ class UiController(QObject):
             folder_path = self.run_manager.get_run_folder()
             self.run_manager.close_csv()
 
-            fluid_density = 1.0  # or retrieve from UI
+            # Use the fluid_density from user UI, defaulting to 1.0 if not set
             final_flow = self.flow_tracker.get_total_volume_ml()
             self.run_manager.run_post_analysis(
-                fluid_density=fluid_density,
+                fluid_density=self._fluid_density,
                 total_flow=final_flow
             )
             logger.info(f"Post-analysis done. Results in: {folder_path}")

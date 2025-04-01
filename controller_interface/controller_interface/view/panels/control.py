@@ -5,7 +5,7 @@ import serial.tools.list_ports
 
 from PyQt5.QtWidgets import (
     QGroupBox, QVBoxLayout, QHBoxLayout, QLabel, QComboBox,
-    QDoubleSpinBox, QFileDialog, QLineEdit, QFrame
+    QDoubleSpinBox, QFileDialog, QLineEdit, QFrame, QSizePolicy
 )
 from PyQt5.QtCore import pyqtSignal, Qt, QSettings
 from PyQt5.QtGui import QFont, QPalette, QColor
@@ -61,15 +61,16 @@ class TuningControlPanel(QGroupBox):
         # Main layout
         # -----------------------
         main_layout = QVBoxLayout(self)
+        # Keep margins small to avoid unnecessary space
         main_layout.setContentsMargins(5, 5, 5, 5)
-        main_layout.setSpacing(20)  # spacing between rows
+        # Reduce spacing from 20 -> 8 or 10 so it doesn't look too large
+        main_layout.setSpacing(10)
 
         # Row 1: Port / Refresh
         row1 = QHBoxLayout()
         self.port_combo = QComboBox(font=self.child_font)
         row1.addWidget(self.port_combo)
 
-        # ThemedButton with no font= param; set the font separately
         self.btn_refresh = ThemedButton("Refresh Ports", is_dark=False)
         self.btn_refresh.setFont(self.child_font)
         self.btn_refresh.clicked.connect(self._on_refresh_ports_clicked)
@@ -120,7 +121,7 @@ class TuningControlPanel(QGroupBox):
 
         self.line_test_name = QLineEdit(font=self.child_font)
         self.line_test_name.setPlaceholderText("e.g. test_run_01")
-        row5.addWidget(self.line_test_name, stretch=1)
+        row5.addWidget(self.line_test_name)
         main_layout.addLayout(row5)
 
         # Row 6: Change Dir button
@@ -167,6 +168,10 @@ class TuningControlPanel(QGroupBox):
         row_startstop.addWidget(self.btn_start)
         row_startstop.addWidget(self.btn_stop)
         main_layout.addLayout(row_startstop)
+
+        # Set a size policy that does not expand more than necessary
+        # horizontally or vertically.
+        self.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Preferred)
 
         self.setLayout(main_layout)
 

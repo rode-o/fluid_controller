@@ -1,19 +1,18 @@
 # controller_interface/view/panels/live_data.py
 
-from PyQt5.QtWidgets import QGroupBox, QVBoxLayout, QLabel, QSpacerItem, QSizePolicy
+from PyQt5.QtWidgets import (
+    QGroupBox, QVBoxLayout, QLabel, QSpacerItem, QSizePolicy
+)
 from PyQt5.QtGui import QFont, QPalette, QColor
 from PyQt5.QtCore import Qt
 
-# You can keep these as constants at the top:
 TITLE_COLOR = QColor(29, 154, 221)
 TITLE_FONT_SIZE = 12
 CHILD_FONT_SIZE = 12
 
 class LiveDataPanel(QGroupBox):
     """
-    A QGroupBox that displays real-time data in a single column.
-    - The group box title is TITLE_FONT_SIZE and bold, colored TITLE_COLOR.
-    - All child labels have CHILD_FONT_SIZE, not bold.
+    Displays real-time data in a single column.
     """
 
     def __init__(self, parent=None):
@@ -35,9 +34,14 @@ class LiveDataPanel(QGroupBox):
         self.child_font.setPointSize(CHILD_FONT_SIZE)
         self.child_font.setBold(False)
 
-        # Layout
+        # 3) Layout
         self.main_layout = QVBoxLayout(self)
+        # Keep margins and spacing tight
         self.main_layout.setContentsMargins(5, 5, 5, 5)
+        self.main_layout.setSpacing(5)
+
+        # Set a size policy so it won't greedily expand horizontally
+        self.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Preferred)
 
         # Create labels
         self.lbl_mode        = QLabel("Mode: ---")
@@ -60,7 +64,6 @@ class LiveDataPanel(QGroupBox):
         self.lbl_dGain       = QLabel("dGain: ---")
         self.lbl_pidOut      = QLabel("PID Out: ---")
 
-        # Store references in a list (or dictionary) for easy iteration
         self.labels = [
             self.lbl_mode, self.lbl_onState, self.lbl_errorPct, self.lbl_setpt,
             self.lbl_flow, self.lbl_temp, self.lbl_volt, self.lbl_bubble,
@@ -72,10 +75,14 @@ class LiveDataPanel(QGroupBox):
         # Apply child font and add each label
         for lbl in self.labels:
             lbl.setFont(self.child_font)
+            # Optional: Make each label not expand horizontally
+            # lbl.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Preferred)
             self.main_layout.addWidget(lbl)
 
-        # Spacer to push labels up
-        self.main_layout.addSpacerItem(QSpacerItem(5, 5, QSizePolicy.Minimum, QSizePolicy.Expanding))
+        # Optional spacer to push labels up, so they stay top-aligned
+        self.main_layout.addSpacerItem(
+            QSpacerItem(5, 5, QSizePolicy.Minimum, QSizePolicy.Expanding)
+        )
 
     def update_data(
         self,
@@ -100,42 +107,35 @@ class LiveDataPanel(QGroupBox):
     ) -> None:
         """
         Update the UI with new data.
-        - flow_val: mL/min
-        - total_flow_ml: total volume in mL
+        ...
         """
-
-        # Mode
+        # (No changes needed in your update logic)
         if mode_val is not None:
             self.lbl_mode.setText(f"Mode: {mode_val}")
         else:
             self.lbl_mode.setText("Mode: ---")
 
-        # On?
         if on_state is not None:
             self.lbl_onState.setText(f"On?: {'Yes' if on_state else 'No'}")
         else:
             self.lbl_onState.setText("On?: ---")
 
-        # Error %
         if error_pct is not None:
             self.lbl_errorPct.setText(f"Err%: {error_pct:.3f}")
         else:
             self.lbl_errorPct.setText("Err%: ---")
 
-        # Setpt, Flow, Temp, Volt, Bubble
         self.lbl_setpt.setText(f"Setpt: {setpt_val:.3f}")
         self.lbl_flow.setText(f"Flow: {flow_val:.3f} mL/min")
         self.lbl_temp.setText(f"Temp: {temp_val:.2f}")
         self.lbl_volt.setText(f"Volt: {volt_val:.2f}")
         self.lbl_bubble.setText(f"Bubble: {'Yes' if bubble_bool else 'No'}")
 
-        # Total volume
         if total_flow_ml is not None:
             self.lbl_totalVolume.setText(f"Total Vol: {total_flow_ml:.3f} mL")
         else:
             self.lbl_totalVolume.setText("Total Vol: ---")
 
-        # FilteredErr, Alpha
         if filtered_err is not None:
             self.lbl_filtErr.setText(f"FiltErr: {filtered_err:.3f}")
         else:
@@ -146,7 +146,6 @@ class LiveDataPanel(QGroupBox):
         else:
             self.lbl_alpha.setText("Alpha: ---")
 
-        # P, pGain
         if p_val is not None:
             self.lbl_p.setText(f"P: {p_val:.3f}")
         else:
@@ -157,7 +156,6 @@ class LiveDataPanel(QGroupBox):
         else:
             self.lbl_pGain.setText("pGain: ---")
 
-        # I, iGain
         if i_val is not None:
             self.lbl_i.setText(f"I: {i_val:.3f}")
         else:
@@ -168,7 +166,6 @@ class LiveDataPanel(QGroupBox):
         else:
             self.lbl_iGain.setText("iGain: ---")
 
-        # D, dGain
         if d_val is not None:
             self.lbl_d.setText(f"D: {d_val:.3f}")
         else:
@@ -179,7 +176,6 @@ class LiveDataPanel(QGroupBox):
         else:
             self.lbl_dGain.setText("dGain: ---")
 
-        # PID Out
         if pid_out_val is not None:
             self.lbl_pidOut.setText(f"PID Out: {pid_out_val:.3f}")
         else:

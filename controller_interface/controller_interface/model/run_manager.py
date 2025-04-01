@@ -2,13 +2,12 @@
 
 import os
 import csv
+import time
 from datetime import datetime
 from typing import Optional
 
 from controller_interface import analyze_data
-
 from controller_interface.utils.logging_utils import logger
-
 
 
 class RunManager:
@@ -70,8 +69,13 @@ class RunManager:
         self.csv_file = open(self.csv_path, "w", newline="")
         self.csv_writer = csv.writer(self.csv_file)
 
+        # We add new columns for absolute time + relative times in ms, s, and m
         header = [
-            "timeMs",
+            "absTimeISO",      # e.g. 2025-04-01T12:34:56.789123
+            "relTimeMs",       # e.g. 12345.67
+            "relTimeSec",      # e.g. 12.34567
+            "relTimeMin",      # e.g. 0.20576
+            "timeMs",          # existing column
             "flow",
             "setpt",
             "temp",
@@ -97,6 +101,14 @@ class RunManager:
     def write_csv_row(self, row) -> None:
         """
         Append a row (list or tuple) to the CSV. Must match the header in length + order.
+
+        Now the first 4 fields are:
+         0) absTimeISO
+         1) relTimeMs
+         2) relTimeSec
+         3) relTimeMin
+         4) timeMs
+         ...
         """
         if self.csv_writer:
             self.csv_writer.writerow(row)
@@ -132,7 +144,6 @@ class RunManager:
             logger.warning("No raw CSV found for analysis in raw_data_dir.")
             return
 
-        # We pass fluid_density and total_flow into analyze_data
         logger.debug(f"Running post-analysis on {raw_csv}")
         analyze_data(
             csv_path=raw_csv,

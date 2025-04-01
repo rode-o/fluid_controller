@@ -54,7 +54,7 @@ def create_plot_widget(
     left_axis.label.setFont(label_font)
 
     # Bottom axis label
-    plot_wid.setLabel('bottom', 'Time (mm:ss)', color='white')
+    plot_wid.setLabel('bottom', ' ', color='white')
     bot_axis = plot_item.getAxis('bottom')
     bot_axis.label.setFont(label_font)
 
@@ -65,7 +65,7 @@ def create_plot_widget(
         plot_wid.setAxisItems({'top': top_axis_item})
         top_axis_item.linkToView(plot_wid.getViewBox())
 
-        plot_wid.setLabel('top', 'Time (Top)', color='white')
+        #plot_wid.setLabel('top', 'Time (Top)', color='white')
         top_axis = plot_item.getAxis('top')
         top_axis.label.setFont(label_font)
     else:

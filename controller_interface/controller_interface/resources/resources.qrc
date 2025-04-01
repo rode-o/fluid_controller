@@ -1,0 +1,6 @@
+<RCC>
+    <qresource prefix="/">
+        <file>salvus_full_logo_color.png</file>
+        <file>salvus_logo_white.ico</file>
+    </qresource>
+</RCC>
