@@ -33,7 +33,7 @@ void reportAllStateJSON(const SystemState &s)
 
   // Indicate which mode we're in (optional)
   Serial.print(",\"mode\":");
-  Serial.print(s.controlMode == CONTROL_MODE_SIGMOIDAL ? "\"SIG\"" : "\"CONST\"");
+  Serial.print(s.controlMode == CONTROL_MODE_EXP ? "\"SIG\"" : "\"CONST\"");
 
   Serial.print(",\"P\":");
   Serial.print(s.pTerm, 3);

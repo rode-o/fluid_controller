@@ -1,21 +1,13 @@
-#ifndef FILTER_H
-#define FILTER_H
+#pragma once
 
-/*
- * File: filter.h
- * Brief: Defines a dynamic low-pass filter with an adaptive alpha.
- */
-
-// Holds the last filtered value
 struct DynamicLPFilter {
     float state;
     float currentAlpha;
 };
 
-// Initializes the filter (e.g., sets state to 0).
+// Initializes the dynamic filter (resets state, optionally pre-computes any needed parameters).
 void initDynamicLPFilter(DynamicLPFilter &filter);
 
-// Updates the filter with a new input, returning the filtered output.
+// Updates the filter output using your custom alpha logic derived from Ki's exponential parameters.
 float updateDynamicLPFilter(DynamicLPFilter &filter, float rawValue);
 
-#endif // FILTER_H

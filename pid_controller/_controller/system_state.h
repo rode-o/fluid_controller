@@ -2,7 +2,7 @@
 
 // Forward-declare any enums if needed:
 enum ControlMode {
-  CONTROL_MODE_SIGMOIDAL = 0,
+  CONTROL_MODE_EXP = 0,      // or CONTROL_MODE_EXP, if you prefer
   CONTROL_MODE_CONST_VOLTAGE
 };
 
