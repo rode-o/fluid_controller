@@ -1,13 +1,32 @@
 #pragma once
+#include <stdint.h>
 
-struct DynamicLPFilter {
+/*──────── Slope-matched first-pole filter ────────*/
+typedef struct {
     float state;
     float currentAlpha;
-};
+} DynamicLPFilter;
 
-// Initializes the dynamic filter (resets state, optionally pre-computes any needed parameters).
-void initDynamicLPFilter(DynamicLPFilter &filter);
+/*──────── Fixed-α EMA second pole ───────────────*/
+typedef struct {
+    float state;
+    bool  primed;
+} SimpleEMA;
 
-// Updates the filter output using your custom alpha logic derived from Ki's exponential parameters.
-float updateDynamicLPFilter(DynamicLPFilter &filter, float rawValue);
+/*──────── 2-pole composite convenience wrapper ──*/
+typedef struct {
+    DynamicLPFilter dyn;   // adaptive pole
+    SimpleEMA       ema;   // fixed-α pole
+} TwoPoleFilter;
 
+/*———  Primary adaptive filter ————————————*/
+void  initDynamicLPFilter (DynamicLPFilter &f);
+float updateDynamicLPFilter(DynamicLPFilter &f, float in);
+
+/*———  EMA second pole ————————————————*/
+void  resetEMA(SimpleEMA &e);           // helper
+float updateEMA(SimpleEMA &e, float in);
+
+/*———  Composite wrapper ——————————————*/
+void  initTwoPoleFilter (TwoPoleFilter &f);
+float updateTwoPoleFilter(TwoPoleFilter &f, float in);

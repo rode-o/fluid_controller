@@ -77,7 +77,7 @@ static const float FLOW_STEP_SIZE = 0.05f;
 // Ki parameters
 #define EXP_KI_A  0.001f
 #define EXP_KI_K  0.23f
-#define EXP_KI_B  50.0f
+#define EXP_KI_B  40.0f
 #define EXP_KI_C  0.0f
 
 // Kd parameters
@@ -103,13 +103,18 @@ static const float FILTER_T_REF = 0.05f;
  *   often pinned A2=0, K2=1 for slope matching approach.
  */
 static const float FILTER_SECONDARY_A2 = 0.0f;
-static const float FILTER_SECONDARY_K2 = 1.0f;
+static const float FILTER_SECONDARY_K2 = 0.5f;
 
 /**
  * FILTER_B2_GUESS:
  *   Initial guess for numeric solving to find B2.
  */
 static const float FILTER_B2_GUESS = 3.0f;
+
+// ─── Extra EMA pole ──────────────────────────────────────────────
+// α close to 1.0  → heavy smoothing, more delay
+// α close to 0.0  → no smoothing
+#define EMA_ALPHA   0.85f          
 
 
 // ---------------------------------------------------------------------------

@@ -71,11 +71,11 @@ class RunManager:
 
         # We add new columns for absolute time + relative times in ms, s, and m
         header = [
-            "absTimeISO",      # e.g. 2025-04-01T12:34:56.789123
-            "relTimeMs",       # e.g. 12345.67
-            "relTimeSec",      # e.g. 12.34567
-            "relTimeMin",      # e.g. 0.20576
-            "timeMs",          # existing column
+            "absTimeISO",     
+            "relTimeMs",       
+            "relTimeSec",      
+            "relTimeMin",     
+            "timeMs",          
             "flow",
             "setpt",
             "temp",
@@ -101,14 +101,7 @@ class RunManager:
     def write_csv_row(self, row) -> None:
         """
         Append a row (list or tuple) to the CSV. Must match the header in length + order.
-
-        Now the first 4 fields are:
-         0) absTimeISO
-         1) relTimeMs
-         2) relTimeSec
-         3) relTimeMin
-         4) timeMs
-         ...
+        
         """
         if self.csv_writer:
             self.csv_writer.writerow(row)
