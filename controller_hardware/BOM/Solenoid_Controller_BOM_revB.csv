@@ -1,0 +1,26 @@
+#,Refs,Qty,Description,Manufacturer + Part,Digi-Key PN,Ratings,Unit $
+1,J1,1,"USB‑C receptacle, USB2‑only",GCT USB4085‑GF‑A,2073-USB4085-GF-A-ND,"5 A 25 V, 20k cycles",0.63
+2,U1,1,USB‑PD sink / power‑path,ST STUSB4500QTR,497-18666-1-ND,5‑20 V 5 A,3.04
+3,Q1,1,Power‑path N‑FET,TI CSD17573Q5B,296-40204-1-ND,40 V 4.5 mΩ,0.45
+4,C1,1,Bulk VBUS cap 220 µF 35 V,Panasonic EEU‑FR1V221L,667-EEU-FR1V221LCT-ND,ESR 70 mΩ,0.32
+5,U2,1,3.3 V 0.5 A buck,TI TPS62177DQC,296-42071-1-ND,28 V in,1.19
+6,L1,1,10 µH inductor,Murata LQH44PN100MPRL,490-2523-1-ND,1.2 A Isat,0.38
+7,U10,1,3.3 V LDO,TI TPS73633DBVT,296-15952-1-ND,400 mA,1.22
+8,U3,1,20→24 V boost,TI LM5157DGKR,296-LM5157DGKR-ND,42 V 4 A,2.7
+9,L2,1,4.7 µH inductor,Coilcraft XAL5050‑472MEB,1783-1616-1-ND,8 A Isat,1.34
+10,DRV,1,12‑ch half‑bridge driver,TI DRV8912‑Q1,296-54932-1-ND,"40 V, 2 A pk",4.95
+11,CDRV,1,47 µF 35 V electrolytic,Panasonic EEU‑FR1V470,667‑EEU‑FR1V470CT‑ND,ESR 80 mΩ,0.28
+12,CDRVdec,1,0.1 µF 50 V X7R,Generic 0402,-,-,0.02
+13,RDRV_EN,1,10 kΩ pull‑down,Generic 0402,-,-,0.01
+14,J2,1,PicoBlade 4‑pos,Molex 053261‑0471,WM1734-ND,1 A pin,0.45
+15,J3,1,PicoBlade 6‑pos,Molex 053261‑0671,WM1736-ND,1 A pin,0.55
+16,J5‑J7,3,JST PH 2‑pos,JST B2B‑PH‑KL,455-1666-1-ND,3 A pin,0.12
+17,LED1,1,RGB LED 0603,SunLED XZCMECBDDGK53W,1497-1610-1-ND,20 mA/chan,0.28
+18,U7,1,ESP32‑S3 module,Espressif ESP32-S3-WROOM-1-N8,1965-ESP32-S3-WROOM-1-N8-ND,3.3 V,3.4
+19,J4,1,18‑pin socket,Mill‑Max 110‑44‑318‑41‑001000,110-44-318-41-001000-ND,Au plated,2.44
+20,U8,1,mp‑Lowdriver module,Bartels,—,±75 Vpp,42.0
+21,PUMP1,1,BP7 micropump,Bartels,—,24 Vact,69.0
+22,FL1,1,SLF3S‑0600F flow sensor,Sensirion,1649-SLF3S-0600F-ND,0‑600 µL/min,29.5
+23,VALVE1‑3,3,Burkert 6724 valve,Burkert,—,"24 V, 100 mA",58.0
+24,TVS1,1,USB ESD array,Nexperia PESD5VDUO,1727-1251-1-ND,±15 kV,0.16
+25,Passives misc,-,Rs/Cs assorted,Yageo/TDK,-,Various,3.0
