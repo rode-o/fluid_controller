@@ -100,7 +100,7 @@ class TuningPlotManager:
         Plot 4 => iGain (left axis) / alpha (right axis).
         We removed pGain/dGain completely and replaced them with alpha.
         """
-        self.plot4 = create_plot_widget("iGain / alpha")
+        self.plot4 = create_plot_widget("iGain")
         parent_layout.addWidget(self.plot4)
         plot_item = self.plot4.getPlotItem()
 

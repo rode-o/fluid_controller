@@ -172,9 +172,16 @@
    return flowSetpointValue;
  }
  
- float getErrorPercent() {
-   return errorPercentValue;
- }
+ float getErrorPercent()
+{
+    /* Operator enters:
+         error_hand = 100·(expected − measured)/expected
+       Firmware needs:
+         error_fw   = 100·(measured − expected)/expected
+       → same magnitude, opposite sign
+    */
+    return -errorPercentValue;   //  ← single-point sign flip
+}
  
  /*
   * Function: wasModeTogglePressed
