@@ -1,0 +1,136 @@
+* PSpice Model Editor - Version 16.2.0
+*$
+* TPS73601
+*****************************************************************************
+* (C) Copyright 2014 Texas Instruments Incorporated. All rights reserved.
+*****************************************************************************
+** This model is designed as an aid for customers of Texas Instruments.
+** TI and its licensors and suppliers make no warranties, either expressed
+** or implied, with respect to this model, including the warranties of
+** merchantability or fitness for a particular purpose. The model is
+** provided solely on an "as is" basis. The entire risk as to its quality
+** and performance is with the customer
+*****************************************************************************
+*
+** Released by: WEBENCH Design Center, Texas Instruments Inc.
+* Part: TPS73601
+* Date: 12DEC2014
+* Model Type: Transient
+* Simulator: PSPICE
+* Simulator Version: 16.2.0.p001
+* EVM Order Number: 
+* EVM Users Guide: SBVU014–August 2009
+* Datasheet: SBVS038T –SEPTEMBER 2003–REVISED AUGUST 2010
+*
+* Model Version: Final 1.00
+*
+*****************************************************************************
+*
+* Updates:
+*
+* Final 1.00
+* Release to Web
+*
+*****************************************************************************
+* source TPS73601_TRANS
+.SUBCKT TPS73601_TRANS EN FB IN OUT GND
+V_U1_V4         U1_N448013 0 {UVLO}
+E_U1_ABM5         U1_N442054 0 VALUE { MIN(V(U1_N441680),  
++ MAX(V(IN)-V(U1_DROP), 0))   }
+R_U1_R5         U1_N442054 N397984  10 TC=0,0 
+E_U1_ABM4         U1_N441990 0 VALUE { V(U1_N441664)  
++ * (ABS(V(OUT)) + 1e-6)  
++ / (ABS(V(FB)) + 1e-6)  }
+C_U1_C3         0 N397984  1n  
+R_U1_R1         GND U1_N441664  1G  
+X_U1_U1         EN U1_N442174 U1_N442136 EN_OK COMPHYS_BASIC_GEN PARAMS: VDD=1
++  VSS=0 VTHRESH=0.5
+V_U1_V1         U1_N442136 0 {EHYS}
+R_U1_R3         U1_N441896 U1_N441664  {3.333e5*SQRT(TTRN)} TC=0,0 
+E_U1_E1         U1_DROP 0 TABLE { V(LOAD, 0) } 
++ ( (0,0) 
++  (50m,8m)(100m,18m)(150m,26m)(200m,35m)((250m,42m)(300m,50m)(350m,60m)(400m,70m)
++  )
+C_U1_C1         0 U1_N441664  {1e-6*SQRT(TTRN)}  
+E_U1_ABM6         U1_N441896 0 VALUE { IF(V(U1_N448582)> 0.6 & V(EN_OK) > 0.6, 
++ {VREF}, 0)    }
+V_U1_V2         U1_N442174 0 {VENB}
+X_U1_U2         IN U1_N448013 U1_N447993 U1_N448582 COMPHYS_BASIC_GEN PARAMS:
++  VDD=1 VSS=0 VTHRESH=0.5
+R_U1_R4         U1_N441990 U1_N441680  10 TC=0,0 
+V_U1_V3         U1_N447993 0 {UHYS}
+C_U1_C2         0 U1_N441680  1n  
+R_U1_R2         GND U1_N441680  1G  
+R_R1         VXX V_INP  {RINP}  
+E_ABM1         N242982 0 VALUE { {MIN(V(VXX), (V(Vzz)+(ILIM*ROUT)))}    }
+C_C1         VXX V_INP  {1/(6.28*RINP*POLE)}  
+X_F1    VZZ N516830 V_INP VYY TPS73601_F1 
+R_R6         N242982 VYY  10 TC=0,0 
+V_vload         N516830 OUT 0Vdc
+C_C2         VXX N397984  {1/(6.28*PSRR*RINP*ZERO)}  
+X_S2    EN_OK 0 IN V_INP TPS73601_S2 
+E_ABM2         LOAD 0 VALUE { I(V_vload)    }
+C_C3         0 VYY  1n  
+R_R5         VZZ VYY  {ROUT}  
+R_R2         N397984 VXX  {PSRR*RINP}  
+.PARAM  psrr=1e-4 uvlo=1.7 venb=1.7 ilim=650m vout=2.5 pole=10 zero=4k rinp=1e7
++  ttrn=314u rout=8m vref=1.2 ehys=1.2 drop=0.075 uhys=0
+.ENDS TPS73601_TRANS
+*$
+.subckt TPS73601_F1 1 2 3 4  
+F_F1         3 4 VF_F1 1
+VF_F1         1 2 0V
+.ends TPS73601_F1
+*$
+.subckt TPS73601_S2 1 2 3 4  
+S_S2         3 4 1 2 _S2
+RS_S2         1 2 1G
+.MODEL         _S2 VSWITCH Roff=10MEG Ron=5 Voff=0.0V Von=1.0V
+.ends TPS73601_S2
+*$
+.SUBCKT SRLATCHRHP_BASIC_GEN S R Q QB PARAMS: VDD=1 VSS=0 VTHRESH=0.5 
+GQ 0 Qint VALUE = {IF(V(R) > {VTHRESH},-5,IF(V(S)>{VTHRESH},5, 0))}
+CQint Qint 0 1n
+RQint Qint 0 1000MEG
+D_D10 Qint MY5 D_D1
+V1 MY5 0 {VDD}
+D_D11 MYVSS Qint D_D1
+V2 MYVSS 0 {VSS} 
+EQ Qqq 0 Qint 0 1
+X3 Qqq Qqqd1 BUF_BASIC_GEN PARAMS: VDD={VDD} VSS={VSS} VTHRESH={VTHRESH}
+RQq Qqqd1 Q 1
+EQb Qbr 0 VALUE = {IF( V(Q) > {VTHRESH}, {VSS},{VDD})}
+RQb Qbr QB 1 
+Cdummy1 Q 0 1n 
+Cdummy2 QB 0 1n
+.IC V(Qint) {VSS}
+.ENDS SRLATCHRHP_BASIC_GEN
+*$
+.SUBCKT COMP_BASIC_GEN INP INM Y PARAMS: VDD=1 VSS=0 VTHRESH=0.5	
+E_ABM Yint 0 VALUE {IF (V(INP) > 
++ V(INM), {VDD},{VSS})}
+R1 Yint Y 1
+C1 Y 0 1n
+.ENDS COMP_BASIC_GEN
+*$
+.SUBCKT COMPHYS_BASIC_GEN INP INM HYS OUT PARAMS: VDD=1 VSS=0 VTHRESH=0.5	
+EIN INP1 INM1 INP INM 1 
+EHYS INP1 INP2 VALUE { IF( V(1) > {VTHRESH},-V(HYS),0) }
+EOUT OUT 0 VALUE { IF( V(INP2)>V(INM1), {VDD} ,{VSS}) }
+R1 OUT 1 1
+C1 1 0 5n
+RINP1 INP1 0 1K
+.ENDS COMPHYS_BASIC_GEN
+*$
+.SUBCKT D_D1 1 2
+D1 1 2 DD1
+.MODEL D_D1 D( IS=1e-15 TT=10p Rs=0.05 N=.1  )
+.ENDS D_D1
+*$
+.SUBCKT BUF_BASIC_GEN A  Y PARAMS: VDD=1 VSS=0 VTHRESH=0.5 
+E_ABMGATE    YINT 0 VALUE {{IF(V(A) > {VTHRESH} , 
++ {VDD},{VSS})}}
+RINT YINT Y 1
+CINT Y 0 1n
+.ENDS BUF_BASIC_GEN
+*$

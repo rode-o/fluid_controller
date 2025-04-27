@@ -1,0 +1,9 @@
+# Solenoid Controller — Manufacturing Package (rev‑B)
+
+* USB‑C PD sink requests 20 V @ 3 A (fallback 15/9/5 V).
+* Rails: 24 V (≤2 A) via boost; 3.3 V logic; low‑noise LDO for RF & sensors.
+* Actuation: DRV8912‑Q1 drives three Bürkert 6724 valves (100 mA hit, 25 mA hold).
+* Pump: mp‑Lowdriver module powers Bartels BP7.
+* Flow feedback: Sensirion SLF3S‑0600F via I²C.
+* Status RGB LED indicates PD state & faults.
+* ESP32‑S3 handles PWM, closed‑loop control, Wi‑Fi comms.
