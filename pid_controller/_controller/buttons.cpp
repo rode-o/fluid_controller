@@ -180,7 +180,7 @@
          error_fw   = 100·(measured − expected)/expected
        → same magnitude, opposite sign
     */
-    return -errorPercentValue;   //  ← single-point sign flip
+    return errorPercentValue;  
 }
  
  /*

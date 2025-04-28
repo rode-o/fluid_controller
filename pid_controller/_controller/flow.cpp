@@ -89,9 +89,9 @@
    rawTempC      = (float)rawTempInt / SLF_SCALE_FACTOR_TEMP;
  
    // Apply user-defined error compensation
-   float errorPercent   = getErrorPercent();
-   float compFactor     = 1.0f / (1.0f + (errorPercent / 100.0f));
-   float compensatedFlow = rawFlow_mLmin * compFactor;
+   float err = getErrorPercent();          // +10 means high
+   float compFactor = 1.0f / (1.0f - err/100.0f);
+   compensatedFlow  = rawFlow * compFactor;
  
    return compensatedFlow;
  }
