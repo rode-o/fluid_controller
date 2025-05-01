@@ -1,0 +1,30 @@
+{
+  "final_flow_ml": 15.2667,
+  "total_time_raw_s": 1841.395,
+  "total_time_raw_min": 30.6899,
+  "total_volume_raw_ml": 15.2667,
+  "total_mass_raw_g": 14.9156,
+  "avg_flow_raw": 0.4978,
+  "max_flow_raw": 0.603,
+  "avg_temp_raw": 23.9297,
+  "total_time_stable_s": 0.0,
+  "total_time_stable_min": 0.0,
+  "total_volume_stable_ml": 0.0,
+  "total_mass_stable_g": 0.0,
+  "avg_flow_stable": 0.0,
+  "max_flow_stable": 0.0,
+  "min_flow_stable": 0.0,
+  "std_flow_stable": 0.0,
+  "rstd_flow_stable": 0.0,
+  "cov_flow_stable": 0.0,
+  "avg_temp_stable": null,
+  "min_temp_stable": null,
+  "max_temp_stable": null,
+  "measured weight": 15.1
+}
+
+// measured mass : 15.10g
+// calculated volume : 15.10g / 0.977g/ml = 15.43ml
+// calculated error % : (15.45ml - 15.2667ml) / 15.2667ml * 100 = 1.23%
+// no calibration factor change needed
+// calibration factor set to : 8

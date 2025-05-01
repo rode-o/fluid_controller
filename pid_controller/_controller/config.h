@@ -77,7 +77,7 @@ static const float FLOW_STEP_SIZE = 0.05f;
 // Ki parameters
 #define EXP_KI_A  0.001f
 #define EXP_KI_K  0.23f
-#define EXP_KI_B  40.0f
+#define EXP_KI_B  50.0f
 #define EXP_KI_C  0.0f
 
 // Kd parameters
