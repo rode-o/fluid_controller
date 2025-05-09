@@ -5,9 +5,9 @@ from scipy.optimize import brentq
 # ── Firmware‑style parameters ────────────────────────────────────────────────
 EXP_KI_A  = 0.001             # primary A1
 EXP_KI_K  = 0.23              # primary K1
-EXP_KI_B  =10.0              # primary B1
+EXP_KI_B  =100.0              # primary B1
 
-FILTER_T_REF        = 0.005   # slope‑match reference |error|
+FILTER_T_REF        = 0.05   # slope‑match reference |error|
 
 FILTER_SECONDARY_A2 = 0.0     # secondary A2 (pinned)
 FILTER_SECONDARY_K2 = 0.5     # secondary K2 (pinned)
